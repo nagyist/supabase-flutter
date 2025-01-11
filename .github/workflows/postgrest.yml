@@ -1,17 +1,19 @@
-name: gotrue
+name: postgrest
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'packages/gotrue/**'
-      - '.github/workflows/gotrue.yaml'
+      - 'packages/postgrest/**'
+      - '.github/workflows/postgrest.yml'
+      - 'packages/yet_another_json_isolate/**'
 
   pull_request:
     paths:
-      - 'packages/gotrue/**'
-      - '.github/workflows/gotrue.yaml'
+      - 'packages/postgrest/**'
+      - '.github/workflows/postgrest.yml'
+      - 'packages/yet_another_json_isolate/**'
 
 jobs:
   test:
@@ -20,17 +22,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        sdk: [2.17.0, stable, beta, dev]
+        sdk: [stable, beta, dev]
 
     defaults:
       run:
-        working-directory: packages/gotrue
+        working-directory: packages/postgrest
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -41,7 +43,7 @@ jobs:
         run: |
           cd ../../
           dart pub global activate melos
-          melos bootstrap --ignore="supabase_flutter"
+          melos bootstrap --no-flutter
 
       - name: dartfmt
         if: ${{ matrix.sdk == 'stable'}}
@@ -52,9 +54,9 @@ jobs:
 
       - name: Build Docker image
         run: |
-          cd ../../infra/gotrue
-          docker-compose down
-          docker-compose up -d
+          cd ../../infra/postgrest
+          docker compose down
+          docker compose up -d
 
       - name: Sleep for 5 seconds
         uses: jakejarvis/wait-action@master
@@ -62,4 +64,4 @@ jobs:
           time: '5s'
 
       - name: Run tests
-        run: dart test
+        run: dart test --concurrency=1

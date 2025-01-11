@@ -1,17 +1,17 @@
-name: yet_another_json_isolate
+name: realtime_client
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'packages/yet_another_json_isolate/**'
-      - '.github/workflows/yet_another_json_isolate.yaml'
+      - 'packages/realtime_client/**'
+      - '.github/workflows/realtime_client.yml'
 
   pull_request:
     paths:
-      - 'packages/yet_another_json_isolate/**'
-      - '.github/workflows/yet_another_json_isolate.yaml'
+      - 'packages/realtime_client/**'
+      - '.github/workflows/realtime_client.yml'
 
 jobs:
   test:
@@ -20,17 +20,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        sdk: [2.17.0, stable, beta, dev]
+        sdk: [stable, beta, dev]
 
     defaults:
       run:
-        working-directory: packages/yet_another_json_isolate
+        working-directory: packages/realtime_client
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -41,7 +41,7 @@ jobs:
         run: |
           cd ../../
           dart pub global activate melos
-          melos bootstrap --ignore="supabase_flutter"
+          melos bootstrap --no-flutter
 
       - name: dartfmt
         if: ${{ matrix.sdk == 'stable'}}

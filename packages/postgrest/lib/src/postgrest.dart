@@ -1,4 +1,5 @@
 import 'package:http/http.dart';
+import 'package:logging/logging.dart';
 import 'package:postgrest/postgrest.dart';
 import 'package:postgrest/src/constants.dart';
 import 'package:yet_another_json_isolate/yet_another_json_isolate.dart';
@@ -7,14 +8,15 @@ import 'package:yet_another_json_isolate/yet_another_json_isolate.dart';
 class PostgrestClient {
   final String url;
   final Map<String, String> headers;
-  final String? schema;
+  final String? _schema;
   final Client? httpClient;
   final YAJsonIsolate _isolate;
   final bool _hasCustomIsolate;
+  final _log = Logger('supabase.postgrest');
 
   /// To create a [PostgrestClient], you need to provide an [url] endpoint.
   ///
-  /// You can also provide custom [headers] and [schema] if needed
+  /// You can also provide custom [headers] and [_schema] if needed
   /// ```dart
   /// PostgrestClient(REST_URL)
   /// PostgrestClient(REST_URL, headers: {'apikey': 'foo'})
@@ -26,12 +28,16 @@ class PostgrestClient {
   PostgrestClient(
     this.url, {
     Map<String, String>? headers,
-    this.schema,
+    String? schema,
     this.httpClient,
     YAJsonIsolate? isolate,
-  })  : headers = {...defaultHeaders, if (headers != null) ...headers},
+  })  : _schema = schema,
+        headers = {...defaultHeaders, if (headers != null) ...headers},
         _isolate = isolate ?? (YAJsonIsolate()..initialize()),
-        _hasCustomIsolate = isolate != null;
+        _hasCustomIsolate = isolate != null {
+    _log.config('Initialize PostgrestClient with url: $url, schema: $_schema');
+    _log.finest('Initialize with headers: $headers');
+  }
 
   /// Authenticates the request with JWT.
   @Deprecated("Use setAuth() instead")
@@ -41,6 +47,7 @@ class PostgrestClient {
   }
 
   PostgrestClient setAuth(String? token) {
+    _log.finest("setAuth with: $token");
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     } else {
@@ -53,9 +60,9 @@ class PostgrestClient {
   PostgrestQueryBuilder<void> from(String table) {
     final url = '${this.url}/$table';
     return PostgrestQueryBuilder<void>(
-      url,
+      url: Uri.parse(url),
       headers: {...headers},
-      schema: schema,
+      schema: _schema,
       httpClient: httpClient,
       isolate: _isolate,
     );
@@ -64,7 +71,7 @@ class PostgrestClient {
   /// Select a schema to query or perform an function (rpc) call.
   ///
   /// The schema needs to be on the list of exposed schemas inside Supabase.
-  PostgrestClient useSchema(String schema) {
+  PostgrestClient schema(String schema) {
     return PostgrestClient(
       url,
       headers: {...headers},
@@ -74,28 +81,38 @@ class PostgrestClient {
     );
   }
 
-  /// Perform a stored procedure call.
+  /// {@template postgrest_rpc}
+  /// Performs a stored procedure call.
+  ///
+  /// [fn] is the name of the function to call.
+  ///
+  /// [params] is an optional object to pass as arguments to the function call.
+  ///
+  /// When [get] is set to `true`, the function will be called with read-only
+  /// access mode.
+  ///
+  /// {@endtemplate}
   ///
   /// ```dart
-  /// postgrest.rpc('get_status', params: {'name_param': 'supabot'})
+  /// supabase.rpc('get_status', params: {'name_param': 'supabot'})
   /// ```
-  PostgrestFilterBuilder rpc(
+  PostgrestFilterBuilder<T> rpc<T>(
     String fn, {
     Map? params,
-    FetchOptions options = const FetchOptions(),
+    bool get = false,
   }) {
     final url = '${this.url}/rpc/$fn';
     return PostgrestRpcBuilder(
       url,
       headers: {...headers},
-      schema: schema,
+      schema: _schema,
       httpClient: httpClient,
-      options: options,
       isolate: _isolate,
-    ).rpc(params, options);
+    ).rpc(params, get);
   }
 
   Future<void> dispose() async {
+    _log.fine("dispose PostgrestClient");
     if (!_hasCustomIsolate) {
       return _isolate.dispose();
     }

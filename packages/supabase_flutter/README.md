@@ -9,10 +9,6 @@ Flutter Client library for [Supabase](https://supabase.com/).
 
 - Documentation: https://supabase.com/docs/reference/dart/introduction
 
-## Platform Support
-
-Except Linux, all platforms are fully supported. Linux only doesn't support deeplinks, because of our dependency [app_links](https://pub.dev/packages/app_links). All other features are supported.
-
 ## Getting Started
 
 Import the package:
@@ -43,7 +39,23 @@ final supabase = Supabase.instance.client;
 
 ## Usage example
 
-### [Authentication](https://supabase.com/docs/guides/auth)
+* [Authentication](#authentication)
+  * [Native Apple Sign in](#native-apple-sign-in)
+  * [Native Google sign in](#native-google-sign-in)
+  * [OAuth login](#oauth-login)
+* [Database](#database)
+* [Realtime](#realtime)
+  * [Postgres Changes](#postgres-changes)
+  * [Broadcast](#broadcast)
+  * [Presence](#presence)
+* [Storage](#storage)
+* [Edge Functions](#edge-functions)
+* [Deep Links](#deep-links)
+* [Custom LocalStorage](#custom-localstorage)
+- [Logging](#logging)
+
+
+### <a id="authentication"></a>[Authentication](https://supabase.com/docs/guides/auth)
 
 ```dart
 final supabase = Supabase.instance.client;
@@ -71,18 +83,45 @@ supabase.auth.onAuthStateChange.listen((data) {
 });
 ```
 
-#### Native Apple Sign in
+#### <a id="native-apple-sign-in"></a>Native Apple Sign in
 
-You need to [register your app ID with Apple](https://developer.apple.com/help/account/manage-identifiers/register-an-app-id/) with the `Sign In with Apple` capability selected, and add the bundle ID to your Supabase dashboard in `Authentication -> Providers -> Apple` before performing native Apple sign in.
+You can perform Apple sign in using the [sign_in_with_apple](https://pub.dev/packages/sign_in_with_apple) package on Flutter.
+Follow the instructions on README of the `sign_in_with_apple` package to setup the native Apple sign in on iOS and macOS.
+
+Once the setup is complete on the Flutter app, add the bundle ID of your app to your Supabase dashboard in `Authentication -> Providers -> Apple` in order to register your app with Supabase.
 
 ```dart
-// Perform Apple login on iOS and macOS
-await supabase.auth.signInWithApple();
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Performs Apple sign in on iOS or macOS
+Future<AuthResponse> signInWithApple() async {
+  final rawNonce = supabase.auth.generateRawNonce();
+  final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+  final credential = await SignInWithApple.getAppleIDCredential(
+    scopes: [
+      AppleIDAuthorizationScopes.email,
+      AppleIDAuthorizationScopes.fullName,
+    ],
+    nonce: hashedNonce,
+  );
+
+  final idToken = credential.identityToken;
+  if (idToken == null) {
+    throw const AuthException(
+        'Could not find ID Token from generated credential.');
+  }
+
+  return signInWithIdToken(
+    provider: OAuthProvider.apple,
+    idToken: idToken,
+    nonce: rawNonce,
+  );
+}
 ```
 
-`signInWithApple()` is only supported on iOS and on macOS. Use the `signInWithOAuth()` method to perform web-based Apple sign in on other platforms.
-
-#### Native Google sign in
+#### <a id="native-google-sign-in"></a>Native Google sign in
 
 You can perform native Google sign in on Android and iOS using [google_sign_in](https://pub.dev/packages/google_sign_in).
 For platform specific settings, follow the instructions on README of the package.
@@ -134,7 +173,7 @@ Future<AuthResponse> _googleSignIn() async {
   }
 
   return supabase.auth.signInWithIdToken(
-    provider: Provider.google,
+    provider: OAuthProvider.google,
     idToken: idToken,
     accessToken: accessToken,
   );
@@ -142,7 +181,7 @@ Future<AuthResponse> _googleSignIn() async {
 ...
 ```
 
-### OAuth login
+### <a id="oauth-login"></a>OAuth login
 
 For providers other than Apple or Google, you need to use the `signInWithOAuth()` method to perform OAuth login. This will open the web browser to perform the OAuth login.
 
@@ -151,7 +190,7 @@ Use the `redirectTo` parameter to redirect the user to a deep link to bring the 
 ```dart
 // Perform web based OAuth login
 await supabase.auth.signInWithOAuth(
-  Provider.github,
+  OAuthProvider.github,
   redirectTo: kIsWeb ? null : 'io.supabase.flutter://callback',
 );
 
@@ -164,7 +203,7 @@ supabase.auth.onAuthStateChange.listen((data) {
 });
 ```
 
-### [Database](https://supabase.com/docs/guides/database)
+### <a id="database"></a>[Database](https://supabase.com/docs/guides/database)
 
 Database methods are used to perform basic CRUD operations using the Supabase REST API. Full list of supported operators can be found [here](https://supabase.com/docs/reference/dart/select).
 
@@ -182,7 +221,7 @@ await supabase
   .insert({'name': 'The Shire', 'country_id': 554});
 ```
 
-### [Realtime](https://supabase.com/docs/guides/realtime)
+### <a id="realtime"></a>[Realtime](https://supabase.com/docs/guides/realtime)
 
 #### Realtime data as `Stream`
 
@@ -201,12 +240,12 @@ class MyWidget extends StatefulWidget {
 
 class _MyWidgetState extends State<MyWidget> {
   // Persisting the future as local variable to prevent refetching upon rebuilds.
-  final List<Map<String, dynamic>> _stream = supabase.from('countries').stream(primaryKey: ['id']);
+  final stream = supabase.from('countries').stream(primaryKey: ['id']);
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _stream,
+      stream: stream,
       builder: (context, snapshot) {
         // return your widget with the data from snapshot
       },
@@ -215,25 +254,26 @@ class _MyWidgetState extends State<MyWidget> {
 }
 ```
 
-#### [Postgres Changes](https://supabase.com/docs/guides/realtime#postgres-changes)
+#### <a id="postgres-changes"></a>[Postgres Changes](https://supabase.com/docs/guides/realtime#postgres-changes)
 
 You can get notified whenever there is a change in your Supabase tables.
 
 ```dart
 final myChannel = supabase.channel('my_channel');
 
-myChannel.on(
-    RealtimeListenTypes.postgresChanges,
-    ChannelFilter(
-      event: '*',
+myChannel
+    .onPostgresChanges(
+      event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'countries',
-    ), (payload, [ref]) {
-  // Do something fun or interesting when there is an change on the database
-}).subscribe();
+      callback: (payload) {
+        // Do something fun or interesting when there is an change on the database
+      },
+    )
+    .subscribe();
 ```
 
-#### [Broadcast](https://supabase.com/docs/guides/realtime#broadcast)
+#### <a id="broadcast"></a>[Broadcast](https://supabase.com/docs/guides/realtime#broadcast)
 
 Broadcast lets you send and receive low latency messages between connected clients by bypassing the database.
 
@@ -241,20 +281,22 @@ Broadcast lets you send and receive low latency messages between connected clien
 final myChannel = supabase.channel('my_channel');
 
 // Subscribe to `cursor-pos` broadcast event
-myChannel.on(RealtimeListenTypes.broadcast,
-    ChannelFilter(event: 'cursor-pos'), (payload, [ref]) {
-  // Do something fun or interesting when there is an change on the database
-}).subscribe();
+final myChannel = supabase.channel('my_channel');
+
+myChannel
+    .onBroadcast(event: 'cursor-pos', callback: (payload) {}
+        // Do something fun or interesting when there is an change on the database
+        )
+    .subscribe();
 
 // Send a broadcast message to other connected clients
-await myChannel.send(
-  type: RealtimeListenTypes.broadcast,
+await myChannel.sendBroadcastMessage(
   event: 'cursor-pos',
   payload: {'x': 30, 'y': 50},
 );
 ```
 
-### [Presence](https://supabase.com/docs/guides/realtime#presence)
+### <a id="presence"></a>[Presence](https://supabase.com/docs/guides/realtime#presence)
 
 Presence let's you easily create "I'm online" feature.
 
@@ -262,19 +304,25 @@ Presence let's you easily create "I'm online" feature.
 final myChannel = supabase.channel('my_channel');
 
 // Subscribe to presence events
-myChannel.on(
-    RealtimeListenTypes.presence, ChannelFilter(event: 'sync'),
-    (payload, [ref]) {
-  final onlineUsers = myChannel.presenceState();
-  // handle sync event
-}).on(RealtimeListenTypes.presence, ChannelFilter(event: 'join'),
-    (payload, [ref]) {
-  // New users have joined
-}).on(RealtimeListenTypes.presence, ChannelFilter(event: 'leave'),
-    (payload, [ref]) {
-  // Users have left
-}).subscribe(((status, [_]) async {
-  if (status == 'SUBSCRIBED') {
+myChannel
+    .onPresence(
+        event: PresenceEvent.sync,
+        callback: (payload) {
+          final onlineUsers = myChannel.presenceState();
+          // handle sync event
+        })
+    .onPresence(
+        event: PresenceEvent.join,
+        callback: (payload) {
+          // New users have joined
+        })
+    .onPresence(
+        event: PresenceEvent.leave,
+        callback: (payload) {
+          // Users have left
+        })
+    .subscribe(((status, [_]) async {
+  if (status == RealtimeSubscribeStatus.subscribed) {
     // Send the current user's state upon subscribing
     final status = await myChannel
         .track({'online_at': DateTime.now().toIso8601String()});
@@ -282,7 +330,7 @@ myChannel.on(
 }));
 ```
 
-### [Storage](https://supabase.com/docs/guides/storage)
+### <a id="storage"></a>[Storage](https://supabase.com/docs/guides/storage)
 
 ```dart
 final file = File('example.txt');
@@ -297,13 +345,13 @@ await supabase.storage
   .uploadBinary('my/path/to/files/example.txt', file.readAsBytesSync());
 ```
 
-### [Edge Functions](https://supabase.com/docs/guides/functions)
+### <a id="edge-functions"></a>[Edge Functions](https://supabase.com/docs/guides/functions)
 
 ```dart
 final data = await supabase.functions.invoke('get_countries');
 ```
 
-## Deep links
+## <a id="deep-links"></a>Deep links
 
 ### Why do you need to setup deep links
 
@@ -318,7 +366,7 @@ You need to setup deep links if you want your native app to open when a user cli
 
 \*Currently supabase_flutter supports deep links on Android, iOS, Web, MacOS and Windows.
 
-### Deep link config
+### Dashboard Deep link config
 
 - Go to your Supabase project Authentication Settings page.
 - You need to enter your app redirect callback on `Additional Redirect URLs` field.
@@ -327,235 +375,60 @@ The redirect callback url should have this format `[YOUR_SCHEME]://[YOUR_HOSTNAM
 
 ![authentication settings page](https://raw.githubusercontent.com/supabase/supabase-flutter/main/.github/images/deeplink-config.png)
 
+### Flutter Deep link config
+
+supabase_flutter uses [app_link](https://pub.dev/packages/app_links) internally to handle deep links. You can find the platform specific config to setup deep links in the following.
+
+https://github.com/llfbandit/app_links/tree/master?tab=readme-ov-file#getting-started
+
 ### Platform specific config
 
-Follow the guide https://supabase.io/docs/guides/auth#third-party-logins
+Follow the guide to find additional platform specidic condigs for your OAuth provider.
 
-#### For Android
+https://supabase.io/docs/guides/auth#third-party-logins
 
-<details>
-  <summary>How to setup</summary>
+## <a id="custom-localstorage"></a>Custom LocalStorage
 
-```xml
-<manifest ...>
-  <!-- ... other tags -->
-  <application ...>
-    <activity ...>
-      <!-- ... other tags -->
+As default, `supabase_flutter` uses [`Shared preferences`](https://pub.dev/packages/shared_preferences) to persist the user session.
 
-      <!-- Deep Links -->
-      <intent-filter>
-        <action android:name="android.intent.action.VIEW" />
-        <category android:name="android.intent.category.DEFAULT" />
-        <category android:name="android.intent.category.BROWSABLE" />
-        <!-- Accepts URIs that begin with YOUR_SCHEME://YOUR_HOST -->
-        <data
-          android:scheme="YOUR_SCHEME"
-          android:host="YOUR_HOSTNAME" />
-      </intent-filter>
-    </activity>
-  </application>
-</manifest>
-```
-
-The `android:host` attribute is optional for Deep Links.
-
-For more info: https://developer.android.com/training/app-links/deep-linking
-
-</details>
-
-#### For iOS
-
-<details>
-  <summary>How to setup</summary>
-
-For **Custom URL schemes** you need to declare the scheme in
-`ios/Runner/Info.plist` (or through Xcode's Target Info editor,
-under URL Types):
-
-```xml
-<!-- ... other tags -->
-<plist>
-<dict>
-  <!-- ... other tags -->
-  <key>CFBundleURLTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleTypeRole</key>
-      <string>Editor</string>
-      <key>CFBundleURLSchemes</key>
-      <array>
-        <string>[YOUR_SCHEME]</string>
-      </array>
-    </dict>
-  </array>
-  <!-- ... other tags -->
-</dict>
-</plist>
-```
-
-For more info: https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app
-
-</details>
-
-#### For Windows
-
-<details>
-  <summary>How to setup</summary>
-
-Setting up deep links in Windows has few more steps than other platforms.
-[Learn more](https://pub.dev/packages/app_links#windows)
-
-Declare this method in <PROJECT_DIR>\windows\runner\win32_window.h
-
-```cpp
-  // Dispatches link if any.
-  // This method enables our app to be with a single instance too.
-  // This is optional but mandatory if you want to catch further links in same app.
-  bool SendAppLinkToInstance(const std::wstring& title);
-```
-
-Add this inclusion at the top of <PROJECT_DIR>\windows\runner\win32_window.cpp
-
-```cpp
-#include "app_links_windows/app_links_windows_plugin.h"
-```
-
-Add this method in <PROJECT_DIR>\windows\runner\win32_window.cpp
-
-```cpp
-bool Win32Window::SendAppLinkToInstance(const std::wstring& title) {
-  // Find our exact window
-  HWND hwnd = ::FindWindow(kWindowClassName, title.c_str());
-
-  if (hwnd) {
-    // Dispatch new link to current window
-    SendAppLink(hwnd);
-
-    // (Optional) Restore our window to front in same state
-    WINDOWPLACEMENT place = { sizeof(WINDOWPLACEMENT) };
-    GetWindowPlacement(hwnd, &place);
-    switch(place.showCmd) {
-      case SW_SHOWMAXIMIZED:
-          ShowWindow(hwnd, SW_SHOWMAXIMIZED);
-          break;
-      case SW_SHOWMINIMIZED:
-          ShowWindow(hwnd, SW_RESTORE);
-          break;
-      default:
-          ShowWindow(hwnd, SW_NORMAL);
-          break;
-    }
-    SetWindowPos(0, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
-    SetForegroundWindow(hwnd);
-    // END Restore
-
-    // Window has been found, don't create another one.
-    return true;
-  }
-
-  return false;
-}
-```
-
-Add the call to the previous method in `CreateAndShow`
-
-```cpp
-bool Win32Window::CreateAndShow(const std::wstring& title,
-                                const Point& origin,
-                                const Size& size) {
-if (SendAppLinkToInstance(title)) {
-    return false;
-}
-
-...
-```
-
-At this point, you can register your own scheme.  
- On Windows, URL protocols are setup in the Windows registry.
-
-This package won't do it for you.
-
-You can achieve it with [url_protocol](https://pub.dev/packages/url_protocol) inside you app.
-
-The most relevant solution is to include those registry modifications into your installer to allow
-for deregistration.
-
-</details>
-
-#### For Mac OS
-
-<details>
-  <summary>How to setup</summary>
-
-Add this XML chapter in your macos/Runner/Info.plist inside <plist version="1.0"><dict> chapter:
-
-```xml
-<!-- ... other tags -->
-<plist version="1.0">
-<dict>
-  <!-- ... other tags -->
-  <key>CFBundleURLTypes</key>
-  <array>
-      <dict>
-          <key>CFBundleURLName</key>
-          <!-- abstract name for this URL type (you can leave it blank) -->
-          <string>sample_name</string>
-          <key>CFBundleURLSchemes</key>
-          <array>
-              <!-- your schemes -->
-              <string>sample</string>
-          </array>
-      </dict>
-  </array>
-  <!-- ... other tags -->
-</dict>
-</plist>
-```
-
-</details>
-
-### Custom LocalStorage
-
-As default, `supabase_flutter` uses [`hive`](https://pub.dev/packages/hive) to persist the user session. Encryption is disabled by default, since an unique encryption key is necessary, and we can not define it. To set an `encryptionKey`, do the following:
-
-```dart
-Future<void> main() async {
-  // set it before initializing
-  HiveLocalStorage.encryptionKey = 'my_secure_key';
-  await Supabase.initialize(...);
-}
-```
-
-**Note** the key must be the same. There is no check if the encryption key is correct. If it isn't, there may be unexpected behavior. [Learn more](https://docs.hivedb.dev/#/advanced/encrypted_box) about encryption in hive.
-
-However you can use any other methods by creating a `LocalStorage` implementation. For example, we can use [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) plugin to store the user session in a secure storage.
+However, you can use any other methods by creating a `LocalStorage` implementation. For example, we can use [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage) plugin to store the user session in a secure storage.
 
 ```dart
 // Define the custom LocalStorage implementation
-class SecureLocalStorage extends LocalStorage {
-  SecureLocalStorage() : super(
-    initialize: () async {},
-    hasAccessToken: () {
-      const storage = FlutterSecureStorage();
-      return storage.containsKey(key: supabasePersistSessionKey);
-    }, accessToken: () {
-      const storage = FlutterSecureStorage();
-      return storage.read(key: supabasePersistSessionKey);
-    }, removePersistedSession: () {
-      const storage = FlutterSecureStorage();
-      return storage.delete(key: supabasePersistSessionKey);
-    }, persistSession: (String value) {
-      const storage = FlutterSecureStorage();
-      return storage.write(key: supabasePersistSessionKey, value: value);
-    },
-  );
+class MySecureStorage extends LocalStorage {
+
+  final storage = FlutterSecureStorage();
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<String?> accessToken() async {
+    return storage.read(key: supabasePersistSessionKey);
+  }
+
+  @override
+  Future<bool> hasAccessToken() async {
+    return storage.containsKey(key: supabasePersistSessionKey);
+  }
+
+  @override
+  Future<void> persistSession(String persistSessionString) async {
+    return storage.write(key: supabasePersistSessionKey, value: persistSessionString);
+  }
+
+  @override
+  Future<void> removePersistedSession() async {
+    return storage.delete(key: supabasePersistSessionKey);
+  }
 }
 
 // use it when initializing
 Supabase.initialize(
   ...
-  localStorage: SecureLocalStorage(),
+  authOptions: FlutterAuthClientOptions(
+    localStorage: MySecureStorage(),
+  ),
 );
 ```
 
@@ -564,11 +437,202 @@ You can also use `EmptyLocalStorage` to disable session persistence:
 ```dart
 Supabase.initialize(
   // ...
-  localStorage: const EmptyLocalStorage(),
+  authOptions: FlutterAuthClientOptions(
+    localStorage: const EmptyLocalStorage(),
+  ),
 );
 ```
 
+### Persisting the user session from supabase_flutter v1
+
+supabase_flutter v1 used hive to persist the user session. In the current version of supabase_flutter it uses shared_preferences. If you are updating your app from v1 to v2, you can use the following custom `LocalStorage` implementation to automatically migrate the user session from [hive](https://pub.dev/packages/hive) to [shared_preferences](https://pub.dev/packages/shared_preferences).
+
+```dart
+const _hiveBoxName = 'supabase_authentication';
+
+class MigrationLocalStorage extends LocalStorage {
+  final SharedPreferencesLocalStorage sharedPreferencesLocalStorage;
+  late final HiveLocalStorage hiveLocalStorage;
+
+  MigrationLocalStorage({required String persistSessionKey})
+      : sharedPreferencesLocalStorage =
+            SharedPreferencesLocalStorage(persistSessionKey: persistSessionKey);
+
+  @override
+  Future<void> initialize() async {
+    await Hive.initFlutter('auth');
+    hiveLocalStorage = const HiveLocalStorage();
+    await sharedPreferencesLocalStorage.initialize();
+    try {
+      await migrate();
+    } on TimeoutException {
+      // Ignore TimeoutException thrown by Hive methods
+      // https://github.com/supabase/supabase-flutter/issues/794
+    }
+  }
+
+  @visibleForTesting
+  Future<void> migrate() async {
+    // Migrate from Hive to SharedPreferences
+    if (await Hive.boxExists(_hiveBoxName)) {
+      await hiveLocalStorage.initialize();
+
+      final hasHive = await hiveLocalStorage.hasAccessToken();
+      if (hasHive) {
+        final accessToken = await hiveLocalStorage.accessToken();
+        final session =
+            Session.fromJson(jsonDecode(accessToken!)['currentSession']);
+        if (session == null) {
+          return;
+        }
+        await sharedPreferencesLocalStorage
+            .persistSession(jsonEncode(session.toJson()));
+        await hiveLocalStorage.removePersistedSession();
+      }
+      if (Hive.box(_hiveBoxName).isEmpty) {
+        final boxPath = Hive.box(_hiveBoxName).path;
+        await Hive.deleteBoxFromDisk(_hiveBoxName);
+
+        //Delete `auth` folder if it's empty
+        if (!kIsWeb && boxPath != null) {
+          final boxDir = File(boxPath).parent;
+          final dirIsEmpty = await boxDir.list().length == 0;
+          if (dirIsEmpty) {
+            await boxDir.delete();
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  Future<String?> accessToken() {
+    return sharedPreferencesLocalStorage.accessToken();
+  }
+
+  @override
+  Future<bool> hasAccessToken() {
+    return sharedPreferencesLocalStorage.hasAccessToken();
+  }
+
+  @override
+  Future<void> persistSession(String persistSessionString) {
+    return sharedPreferencesLocalStorage.persistSession(persistSessionString);
+  }
+
+  @override
+  Future<void> removePersistedSession() {
+    return sharedPreferencesLocalStorage.removePersistedSession();
+  }
+}
+
+/// A [LocalStorage] implementation that implements Hive as the
+/// storage method.
+class HiveLocalStorage extends LocalStorage {
+  /// Creates a LocalStorage instance that implements the Hive Database
+  const HiveLocalStorage();
+
+  /// The encryption key used by Hive. If null, the box is not encrypted
+  ///
+  /// This value should not be redefined in runtime, otherwise the user may
+  /// not be fetched correctly
+  ///
+  /// See also:
+  ///
+  ///   * <https://docs.hivedb.dev/#/advanced/encrypted_box?id=encrypted-box>
+  static String? encryptionKey;
+
+  @override
+  Future<void> initialize() async {
+    HiveCipher? encryptionCipher;
+    if (encryptionKey != null) {
+      encryptionCipher = HiveAesCipher(base64Url.decode(encryptionKey!));
+    }
+    await Hive.initFlutter('auth');
+    await Hive.openBox(_hiveBoxName, encryptionCipher: encryptionCipher)
+        .timeout(const Duration(seconds: 1));
+  }
+
+  @override
+  Future<bool> hasAccessToken() {
+    return Future.value(
+      Hive.box(_hiveBoxName).containsKey(
+        supabasePersistSessionKey,
+      ),
+    );
+  }
+
+  @override
+  Future<String?> accessToken() {
+    return Future.value(
+      Hive.box(_hiveBoxName).get(supabasePersistSessionKey) as String?,
+    );
+  }
+
+  @override
+  Future<void> removePersistedSession() {
+    return Hive.box(_hiveBoxName).delete(supabasePersistSessionKey);
+  }
+
+  @override
+  Future<void> persistSession(String persistSessionString) {
+    // Flush after X amount of writes
+    return Hive.box(_hiveBoxName)
+        .put(supabasePersistSessionKey, persistSessionString);
+  }
+}
+```
+
+You can then initialize Supabase with `MigrationLocalStorage` and it will automatically migrate the session from Hive to SharedPreferences.
+
+```dart
+Supabase.initialize(
+  // ...
+  authOptions: FlutterAuthClientOptions(
+    localStorage: const MigrationLocalStorage(
+      persistSessionKey:
+              "sb-${Uri.parse(url).host.split(".").first}-auth-token",
+    ),
+  ),
+);
+```
+
+## Logging
+
+All Supabase packages use the [logging](https://pub.dev/packages/logging) package to log information. Each sub-package has its own logger instance. You can listen to logs and set custom log levels for each logger.
+
+In debug mode, or depending on the value for `debug` from `Supabase.initialize()`, records with `Level.INFO` and above are printed to the console.
+
+Records containing sensitive data like access tokens and which requests are made are logged with `Level.FINEST`, so you can handle them accordingly.
+
+### Listen to all Supabase logs
+
+```dart
+import 'package:logging/logging.dart';
+
+final supabaseLogger = Logger('supabase');
+supabaseLogger.level = Level.ALL; // custom log level filtering, default is Level.INFO
+supabaseLogger.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+});
+```
+
+### Sub-package loggers
+
+- `supabase_flutter`: `Logger('supabase.supabase_flutter')`
+- `supabase`: `Logger('supabase.supabase')`
+- `postgrest`: `Logger('supabase.postgrest')`
+- `gotrue`: `Logger('supabase.auth')`
+- `realtime_client`: `Logger('supabase.realtime')`
+- `storage_client`: `Logger('supabase.storage')`
+- `functions_client`: `Logger('supabase.functions')`
+
 ---
+
+## Migrating Guide
+
+You can find the migration guide to migrate from v1 to v2 here:
+https://supabase.com/docs/reference/dart/upgrade-guide
 
 ## Contributing
 

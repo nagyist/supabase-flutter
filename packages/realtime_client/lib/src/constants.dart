@@ -9,6 +9,8 @@ class Constants {
   };
 }
 
+typedef RealtimeConstants = Constants;
+
 enum SocketStates {
   /// Client attempting to establish a connection
   connecting,
@@ -16,8 +18,8 @@ enum SocketStates {
   /// Connection is live and connected
   open,
 
-  /// Socket is closing.
-  closing,
+  /// Socket is closing by the user
+  disconnecting,
 
   /// Socket being close not by the user. Realtime should attempt to reconnect.
   closed,

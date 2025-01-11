@@ -1,27 +1,17 @@
-name: supabase
+name: gotrue
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'packages/supabase/**'
-      - '.github/workflows/supabase.yaml'
-      - 'packages/functions_client/**'
       - 'packages/gotrue/**'
-      - 'packages/postgrest/**'
-      - 'packages/realtime_client/**'
-      - 'packages/storage_client/**'
+      - '.github/workflows/gotrue.yml'
 
   pull_request:
     paths:
-      - 'packages/supabase/**'
-      - '.github/workflows/supabase.yaml'
-      - 'packages/functions_client/**'
       - 'packages/gotrue/**'
-      - 'packages/postgrest/**'
-      - 'packages/realtime_client/**'
-      - 'packages/storage_client/**'
+      - '.github/workflows/gotrue.yml'
 
 jobs:
   test:
@@ -30,17 +20,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        sdk: [2.17.0, stable, beta, dev]
+        sdk: [stable, beta, dev]
 
     defaults:
       run:
-        working-directory: packages/supabase
+        working-directory: packages/gotrue
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -51,7 +41,7 @@ jobs:
         run: |
           cd ../../
           dart pub global activate melos
-          melos bootstrap --ignore="supabase_flutter"
+          melos bootstrap --no-flutter
 
       - name: dartfmt
         if: ${{ matrix.sdk == 'stable'}}
@@ -60,5 +50,16 @@ jobs:
       - name: analyzer
         run: dart analyze --fatal-warnings --fatal-infos .
 
+      - name: Build Docker image
+        run: |
+          cd ../../infra/gotrue
+          docker compose down
+          docker compose up -d
+
+      - name: Sleep for 5 seconds
+        uses: jakejarvis/wait-action@master
+        with:
+          time: '5s'
+
       - name: Run tests
-        run: dart test
+        run: dart test --concurrency=1
