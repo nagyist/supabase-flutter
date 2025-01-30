@@ -1,3 +1,69 @@
+## 2.4.1
+
+ - **FIX**(realtime_client): Prevent sending expired tokens ([#1095](https://github.com/supabase/supabase-flutter/issues/1095)). ([1bb034f0](https://github.com/supabase/supabase-flutter/commit/1bb034f0f82b03d629edc733688c8648cf01e5b9))
+
+## 2.4.0
+
+ - **FEAT**: Add logging ([#1042](https://github.com/supabase/supabase-flutter/issues/1042)). ([d1ecabd7](https://github.com/supabase/supabase-flutter/commit/d1ecabd77881a0488d2d4b41ea5ee5abda6c5c35))
+
+## 2.3.0
+
+ - **FIX**: Better stream and access token management ([#1019](https://github.com/supabase/supabase-flutter/issues/1019)). ([4a8b6416](https://github.com/supabase/supabase-flutter/commit/4a8b641661da4ce9b6ddaea64793df58411809f7))
+ - **FEAT**: Added onSystemEvents listener ([#1025](https://github.com/supabase/supabase-flutter/issues/1025)). ([a12b097f](https://github.com/supabase/supabase-flutter/commit/a12b097ff76270d6108e97335a3a6ea0adf0b460))
+
+## 2.2.1
+
+ - **FIX**: Upgrade `web_socket_channel` for supporting `web: ^1.0.0` and therefore WASM compilation on web ([#992](https://github.com/supabase/supabase-flutter/issues/992)). ([7da68565](https://github.com/supabase/supabase-flutter/commit/7da68565a7aa578305b099d7af755a7b0bcaca46))
+
+## 2.2.0
+
+ - **FEAT**(realtime_client): Add support for authorized realtime channels with broadcast and presence. ([#970](https://github.com/supabase/supabase-flutter/issues/970)). ([8305fef6](https://github.com/supabase/supabase-flutter/commit/8305fef65eecbcca5d7d39ad7fc684d4134a578d))
+
+## 2.1.0
+
+ - **FEAT**: Allow setting `timeout` of `RealtimeClient`. ([#932](https://github.com/supabase/supabase-flutter/issues/932)). ([dba8bae0](https://github.com/supabase/supabase-flutter/commit/dba8bae0c87209c8f900d753a1e15be7557a07dc))
+
+## 2.0.4
+
+ - **FIX**(realtime_client): Accept an error on track when the server returns an error ([#888](https://github.com/supabase/supabase-flutter/issues/888)). ([f829be58](https://github.com/supabase/supabase-flutter/commit/f829be584bab5af51256bbc8c176e95d52008ebe))
+
+## 2.0.3
+
+ - **FIX**: Don't send access token  in rest broadcast ([#881](https://github.com/supabase/supabase-flutter/issues/881)). ([01a10c97](https://github.com/supabase/supabase-flutter/commit/01a10c9708f6a9d4d2d2b0756009aa895c7238f6))
+
+## 2.0.2
+
+ - **FIX**(realtime_client): Fix issue where `null` `timestamp` type column becomes `"null"` string on realtime ([#855](https://github.com/supabase/supabase-flutter/issues/855)). ([c59bdbbf](https://github.com/supabase/supabase-flutter/commit/c59bdbbf2b098f83d81d189cb36fd822787a880a))
+
+## 2.0.1
+
+ - **REFACTOR**: Deprecate `eventsPerSecond` on Realtime ([#838](https://github.com/supabase/supabase-flutter/issues/838)). ([42383873](https://github.com/supabase/supabase-flutter/commit/42383873a71bbfbecb971e752806241bfdcaa0c2))
+
+## 2.0.0
+
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.
+
+## 2.0.0-dev.3
+
+- **BREAKING** **FEAT**(realtime_client): Introduce type safe realtime methods ([#725](https://github.com/supabase/supabase-flutter/pull/725)).
+- **BREAKING** **FEAT**(realtime_client): Provide better typing for realtime presence. ([#747](https://github.com/supabase/supabase-flutter/pull/747)).
+
+## 2.0.0-dev.2
+
+- **BREAKING** **REFACTOR**(realtime_client): make channel methods private and add @internal label ([#724](https://github.com/supabase/supabase-flutter/pull/724)).
+
+
+## 2.0.0-dev.1
+
+ - fix: a but that prevents SupabaseClient to be used in Dart Edge
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **FIX**: Remove error parameter on `_triggerChanError` ([#637](https://github.com/supabase/supabase-flutter/issues/637)). ([c4291c97](https://github.com/supabase/supabase-flutter/commit/c4291c97c87342cbd84795297c046b7ababef5ac))
+ - **BREAKING** **REFACTOR**: use Dart 3 ([#598](https://github.com/supabase/supabase-flutter/issues/598)). ([02c4071a](https://github.com/supabase/supabase-flutter/commit/02c4071aaf2792d365792eed18ec65d09af4c247))
+ 
 ## 1.4.0
 
  - **FIX**: make Supabase client work in Dart Edge again ([#675](https://github.com/supabase/supabase-flutter/issues/675)). ([53530f22](https://github.com/supabase/supabase-flutter/commit/53530f222b1430debf40d0beb95f75f279d1830f))

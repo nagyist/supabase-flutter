@@ -26,6 +26,7 @@ class User {
   final String? updatedAt;
   final List<UserIdentity>? identities;
   final List<Factor>? factors;
+  final bool isAnonymous;
 
   const User({
     required this.id,
@@ -49,6 +50,7 @@ class User {
     this.updatedAt,
     this.identities,
     this.factors,
+    this.isAnonymous = false,
   });
 
   /// Returns a `User` object from a map of json
@@ -85,6 +87,7 @@ class User {
       factors: json['factors'] != null
           ? List<Factor>.from(json['factors']?.map((x) => Factor.fromJson(x)))
           : null,
+      isAnonymous: json['is_anonymous'] ?? false,
     );
   }
 
@@ -111,12 +114,13 @@ class User {
       'updated_at': updatedAt,
       'identities': identities?.map((identity) => identity.toJson()).toList(),
       'factors': factors?.map((factor) => factor.toJson()).toList(),
+      'is_anonymous': isAnonymous,
     };
   }
 
   @override
   String toString() {
-    return 'User(id: $id, appMetadata: $appMetadata, userMetadata: $userMetadata, aud: $aud, confirmationSentAt: $confirmationSentAt, recoverySentAt: $recoverySentAt, emailChangeSentAt: $emailChangeSentAt, newEmail: $newEmail, invitedAt: $invitedAt, actionLink: $actionLink, email: $email, phone: $phone, createdAt: $createdAt, confirmedAt: $confirmedAt, emailConfirmedAt: $emailConfirmedAt, phoneConfirmedAt: $phoneConfirmedAt, lastSignInAt: $lastSignInAt, role: $role, updatedAt: $updatedAt, identities: $identities, factors: $factors)';
+    return 'User(id: $id, appMetadata: $appMetadata, userMetadata: $userMetadata, aud: $aud, confirmationSentAt: $confirmationSentAt, recoverySentAt: $recoverySentAt, emailChangeSentAt: $emailChangeSentAt, newEmail: $newEmail, invitedAt: $invitedAt, actionLink: $actionLink, email: $email, phone: $phone, createdAt: $createdAt, confirmedAt: $confirmedAt, emailConfirmedAt: $emailConfirmedAt, phoneConfirmedAt: $phoneConfirmedAt, lastSignInAt: $lastSignInAt, role: $role, updatedAt: $updatedAt, identities: $identities, factors: $factors, isAnonymous: $isAnonymous)';
   }
 
   @override
@@ -145,7 +149,8 @@ class User {
         other.role == role &&
         other.updatedAt == updatedAt &&
         collectionEquals(other.identities, identities) &&
-        collectionEquals(other.factors, factors);
+        collectionEquals(other.factors, factors) &&
+        other.isAnonymous == isAnonymous;
   }
 
   @override
@@ -170,7 +175,8 @@ class User {
         role.hashCode ^
         updatedAt.hashCode ^
         identities.hashCode ^
-        factors.hashCode;
+        factors.hashCode ^
+        isAnonymous.hashCode;
   }
 }
 
@@ -178,6 +184,7 @@ class UserIdentity {
   final String id;
   final String userId;
   final Map<String, dynamic>? identityData;
+  final String identityId;
   final String provider;
   final String? createdAt;
   final String? lastSignInAt;
@@ -187,6 +194,7 @@ class UserIdentity {
     required this.id,
     required this.userId,
     required this.identityData,
+    required this.identityId,
     required this.provider,
     required this.createdAt,
     required this.lastSignInAt,
@@ -197,6 +205,7 @@ class UserIdentity {
     String? id,
     String? userId,
     Map<String, dynamic>? identityData,
+    String? identityId,
     String? provider,
     String? createdAt,
     String? lastSignInAt,
@@ -206,6 +215,7 @@ class UserIdentity {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       identityData: identityData ?? this.identityData,
+      identityId: identityId ?? this.identityId,
       provider: provider ?? this.provider,
       createdAt: createdAt ?? this.createdAt,
       lastSignInAt: lastSignInAt ?? this.lastSignInAt,
@@ -218,6 +228,7 @@ class UserIdentity {
       id: map['id'] as String,
       userId: map['user_id'] as String,
       identityData: (map['identity_data'] as Map?)?.cast<String, dynamic>(),
+      identityId: (map['identity_id'] ?? '') as String,
       provider: map['provider'] as String,
       createdAt: map['created_at'] as String?,
       lastSignInAt: map['last_sign_in_at'] as String?,
@@ -230,6 +241,7 @@ class UserIdentity {
       'id': id,
       'user_id': userId,
       'identity_data': identityData,
+      'identity_id': identityId,
       'provider': provider,
       'created_at': createdAt,
       'last_sign_in_at': lastSignInAt,
@@ -239,7 +251,7 @@ class UserIdentity {
 
   @override
   String toString() {
-    return 'UserIdentity(id: $id, userId: $userId, identityData: $identityData, provider: $provider, createdAt: $createdAt, lastSignInAt: $lastSignInAt, updatedAt: $updatedAt)';
+    return 'UserIdentity(id: $id, userId: $userId, identityData: $identityData, identityId: $identityId, provider: $provider, createdAt: $createdAt, lastSignInAt: $lastSignInAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -251,6 +263,7 @@ class UserIdentity {
         other.id == id &&
         other.userId == userId &&
         mapEquals(other.identityData, identityData) &&
+        other.identityId == identityId &&
         other.provider == provider &&
         other.createdAt == createdAt &&
         other.lastSignInAt == lastSignInAt &&
@@ -262,6 +275,7 @@ class UserIdentity {
     return id.hashCode ^
         userId.hashCode ^
         identityData.hashCode ^
+        identityId.hashCode ^
         provider.hashCode ^
         createdAt.hashCode ^
         lastSignInAt.hashCode ^

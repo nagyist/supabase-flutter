@@ -96,7 +96,17 @@ class BucketOptions {
 }
 
 class FileOptions {
+  /// The number of seconds the asset is cached in the browser and
+  /// in the Supabase CDN. This is set in the `Cache-Control: max-age=<seconds>`
+  /// header.
+  ///
+  /// Defaults to `3600`.
   final String cacheControl;
+
+  /// When upsert is set to true, the file is overwritten if it exists.
+  /// When set to false, an error is thrown if the object already exists.
+  ///
+  /// Defaults to `false`.
   final bool upsert;
 
   /// Used as Content-Type
@@ -113,13 +123,13 @@ class FileOptions {
 }
 
 class SearchOptions {
-  /// The number of files you want to be returned. */
+  /// The number of files you want to be returned.
   final int? limit;
 
-  /// The starting position. */
+  /// The starting position.
   final int? offset;
 
-  /// The column to sort by. Can be any column inside a FileObject. */
+  /// The column to sort by. Can be any column inside a FileObject.
   final SortBy? sortBy;
 
   /// The search string to filter files by.
@@ -202,13 +212,10 @@ class SignedUploadURLResponse extends SignedUrl {
   final String token;
 
   const SignedUploadURLResponse({
-    required String signedUrl,
-    required String path,
+    required super.signedUrl,
+    required super.path,
     required this.token,
-  }) : super(
-          signedUrl: signedUrl,
-          path: path,
-        );
+  });
 }
 
 class StorageException implements Exception {
@@ -270,10 +277,10 @@ enum RequestImageFormat {
 /// Specifies the dimensions and the resize mode of the requesting image.
 /// {@endtemplate}
 class TransformOptions {
-  /// Width of the requesting image to be.
+  /// The width of the image in pixels.
   final int? width;
 
-  /// Height of requesting image to be.
+  /// The height of the image in pixels.
   final int? height;
 
   /// {@macro resize_mode}

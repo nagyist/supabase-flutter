@@ -76,7 +76,11 @@ class RetryTestHttpClient extends BaseClient {
       throw ClientException('Retry #$retryCount');
     }
     final jwt = JWT(
-      {'exp': (DateTime.now().millisecondsSinceEpoch / 1000).round() + 60},
+      {
+        'exp': (DateTime.now().millisecondsSinceEpoch / 1000).round() + 60,
+        'retry_count':
+            retryCount, // Add retryCount so that tokens issued on different retries are different.
+      },
       subject: userId1,
     );
 
@@ -139,6 +143,28 @@ class RetryTestHttpClient extends BaseClient {
       ),
       201,
       request: request,
+    );
+  }
+}
+
+class MockedHttpClient extends BaseClient {
+  MockedHttpClient(
+    this.response, {
+    this.headers = const {},
+    this.statusCode = 200,
+  });
+
+  final Map<String, dynamic> response;
+  final Map<String, String> headers;
+  final int statusCode;
+
+  @override
+  Future<StreamedResponse> send(BaseRequest request) async {
+    return StreamedResponse(
+      Stream.value(utf8.encode(jsonEncode(response))),
+      statusCode,
+      request: request,
+      headers: headers,
     );
   }
 }
