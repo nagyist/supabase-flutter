@@ -6,24 +6,26 @@ on:
       - main
     paths:
       - 'packages/supabase_flutter/**'
-      - '.github/workflows/supabase_flutter.yaml'
+      - '.github/workflows/supabase_flutter.yml'
       - 'packages/functions_client/**'
       - 'packages/gotrue/**'
       - 'packages/postgrest/**'
       - 'packages/realtime_client/**'
       - 'packages/storage_client/**'
       - 'packages/supabase/**'
+      - 'packages/yet_another_json_isolate/**'
 
   pull_request:
     paths:
       - 'packages/supabase_flutter/**'
-      - '.github/workflows/supabase_flutter.yaml'
+      - '.github/workflows/supabase_flutter.yml'
       - 'packages/functions_client/**'
       - 'packages/gotrue/**'
       - 'packages/postgrest/**'
       - 'packages/realtime_client/**'
       - 'packages/storage_client/**'
       - 'packages/supabase/**'
+      - 'packages/yet_another_json_isolate/**'
 
 jobs:
   test:
@@ -32,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        flutter-version: ['3.0.0', '3.x']
+        flutter-version: ['3.10.x', '3.x']
 
     defaults:
       run:
@@ -42,16 +44,14 @@ jobs:
 
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v1
-        with:
-          java-version: '12.x'
-
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ matrix.flutter-version }}
           channel: 'stable'
+
+      - run: flutter --version
 
       - name: Bootstrap workspace
         run: |
@@ -60,11 +60,22 @@ jobs:
           melos bootstrap
 
       - name: flutterfmt
-        if: ${{ matrix.sdk == '3.x'}} 
+        if: ${{ matrix.sdk == '3.x'}}
         run: dart format lib test -l 80 --set-exit-if-changed
 
       - name: analyzer
+        if: ${{ matrix.sdk == '3.x'}}
         run: flutter analyze --fatal-warnings --fatal-infos .
 
       - name: Run tests
-        run: flutter test
+        run: flutter test --concurrency=1
+
+      - name: Run tests with downgraded app_links
+        run: |
+          flutter pub downgrade app_links
+          flutter test --concurrency=1
+
+      - name: Verify if Flutter web build is successful
+        run: |
+          cd example
+          flutter build web

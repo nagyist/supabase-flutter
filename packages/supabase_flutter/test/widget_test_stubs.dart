@@ -7,8 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'utils.dart';
+
 class MockWidget extends StatefulWidget {
-  const MockWidget({Key? key}) : super(key: key);
+  const MockWidget({super.key});
 
   @override
   State<MockWidget> createState() => _MockWidgetState();
@@ -44,59 +46,91 @@ class _MockWidgetState extends State<MockWidget> {
   }
 }
 
+/// Local storage that returns an expired session
 class MockExpiredStorage extends LocalStorage {
-  MockExpiredStorage()
-      : super(
-          initialize: () async {},
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<String?> accessToken() async {
+    return getSessionData(DateTime.now().subtract(const Duration(hours: 1)))
+        .sessionString;
+  }
 
-          // Session expires at is at its maximum value for unix timestamp
-          accessToken: () async =>
-              '{"currentSession":{"token_type": "","access_token":"","expires_in":20,"refresh_token":"","user":{"app_metadata": {},"id":"","aud":"","created_at":"","role":"authenticated","updated_at":""}},"expiresAt":${((DateTime.now().subtract(Duration(seconds: 11))).millisecondsSinceEpoch / 1000).round()}}',
-          persistSession: (_) async {},
-          removePersistedSession: () async {},
-          hasAccessToken: () async => true,
-        );
+  @override
+  Future<bool> hasAccessToken() async => true;
+  @override
+  Future<void> persistSession(String persistSessionString) async {}
+  @override
+  Future<void> removePersistedSession() async {}
 }
 
 class MockLocalStorage extends LocalStorage {
-  MockLocalStorage()
-      : super(
-          initialize: () async {},
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<String?> accessToken() async {
+    return getSessionData(DateTime.now().add(const Duration(hours: 1)))
+        .sessionString;
+  }
 
-          // Session expires at is at its maximum value for unix timestamp
-          accessToken: () async =>
-              '{"currentSession":{"token_type": "","access_token":"","expires_in":3600,"refresh_token":"","user":{"app_metadata": {},"id":"","aud":"","created_at":"","role":"authenticated","updated_at":""}},"expiresAt":2147483647}',
-          persistSession: (_) async {},
-          removePersistedSession: () async {},
-          hasAccessToken: () async => true,
-        );
+  @override
+  Future<bool> hasAccessToken() async => true;
+  @override
+  Future<void> persistSession(String persistSessionString) async {}
+  @override
+  Future<void> removePersistedSession() async {}
 }
 
 class MockEmptyLocalStorage extends LocalStorage {
-  MockEmptyLocalStorage()
-      : super(
-          initialize: () async {},
-          accessToken: () async => null,
-          persistSession: (_) async {},
-          removePersistedSession: () async {},
-          hasAccessToken: () async => false,
-        );
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<String?> accessToken() async => null;
+  @override
+  Future<bool> hasAccessToken() async => false;
+  @override
+  Future<void> persistSession(String persistSessionString) async {}
+  @override
+  Future<void> removePersistedSession() async {}
 }
 
-/// Registers the mock handler for uni_links
-void mockAppLink({String? initialLink}) {
+/// Registers the mock handler for app_links
+///
+/// Returns the [EventChannel] used to mock the incoming links.
+void mockAppLink({
+  bool mockMethodChannel = false,
+  bool mockEventChannel = false,
+  String? initialLink,
+}) {
   const channel = MethodChannel('com.llfbandit.app_links/messages');
-  const anotherChannel = MethodChannel('com.llfbandit.app_links/events');
+  const eventChannel = MethodChannel('com.llfbandit.app_links/events');
 
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // ignore: invalid_null_aware_operator
   TestDefaultBinaryMessengerBinding.instance?.defaultBinaryMessenger
-      .setMockMethodCallHandler(channel, (call) async => initialLink);
+      .setMockMethodCallHandler(
+          channel, (call) async => mockMethodChannel ? initialLink : null);
 
-  // ignore: invalid_null_aware_operator
-  TestDefaultBinaryMessengerBinding.instance?.defaultBinaryMessenger
-      .setMockMethodCallHandler(anotherChannel, (message) async => null);
+  // Mock event channel using method channel, to keep supporting older versions
+  // of flutter_test in which setMockStreamHandler is not yet available.
+  if (mockEventChannel) {
+    // ignore: invalid_null_aware_operator
+    TestDefaultBinaryMessengerBinding.instance?.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      eventChannel,
+      (MethodCall methodCall) async {
+        // ignore: invalid_null_aware_operator
+        TestDefaultBinaryMessengerBinding.instance?.defaultBinaryMessenger
+            .handlePlatformMessage(
+          eventChannel.name,
+          const StandardMethodCodec().encodeSuccessEnvelope(initialLink),
+          (ByteData? data) {},
+        );
+        return null;
+      },
+    );
+  }
 }
 
 class MockAsyncStorage extends GotrueAsyncStorage {

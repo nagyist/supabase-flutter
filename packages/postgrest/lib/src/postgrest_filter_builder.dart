@@ -1,16 +1,11 @@
 part of 'postgrest_builder.dart';
 
 class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
-  PostgrestFilterBuilder(PostgrestBuilder<T, T> builder) : super(builder);
+  PostgrestFilterBuilder(super.builder);
 
-  /// Convert list filter to query params string
-  String _cleanFilterArray(List filter) {
-    if (filter.every((element) => element is num)) {
-      return filter.map((s) => '$s').join(',');
-    } else {
-      return filter.map((s) => '"$s"').join(',');
-    }
-  }
+  @override
+  PostgrestFilterBuilder<T> copyWithUrl(Uri url) =>
+      PostgrestFilterBuilder(_copyWith(url: url));
 
   /// Finds all rows which doesn't satisfy the filter.
   ///
@@ -20,23 +15,24 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .not('status', 'eq', 'OFFLINE');
   /// ```
-  PostgrestFilterBuilder<T> not(String column, String operator, dynamic value) {
+  PostgrestFilterBuilder<T> not(String column, String operator, Object? value) {
+    final Uri url;
     if (value is List) {
       if (operator == "in") {
-        appendSearchParams(
+        url = appendSearchParams(
           column,
           'not.$operator.(${_cleanFilterArray(value)})',
         );
       } else {
-        appendSearchParams(
+        url = appendSearchParams(
           column,
           'not.$operator.{${_cleanFilterArray(value)}}',
         );
       }
     } else {
-      appendSearchParams(column, 'not.$operator.$value');
+      url = appendSearchParams(column, 'not.$operator.$value');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows satisfying at least one of the filters.
@@ -47,10 +43,10 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .or('status.eq.OFFLINE,username.eq.supabot');
   /// ```
-  PostgrestFilterBuilder<T> or(String filters, {String? foreignTable}) {
-    final key = foreignTable != null ? '$foreignTable.or' : 'or';
-    appendSearchParams(key, '($filters)');
-    return this;
+  PostgrestFilterBuilder<T> or(String filters, {String? referencedTable}) {
+    final key = referencedTable != null ? '$referencedTable.or' : 'or';
+    final url = appendSearchParams(key, '($filters)');
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose value on the stated [column] exactly matches the specified [value].
@@ -61,13 +57,16 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .eq('username', 'supabot');
   /// ```
-  PostgrestFilterBuilder<T> eq(String column, dynamic value) {
+  ///
+  /// For `null` equality, use [isFilter] instead.
+  PostgrestFilterBuilder<T> eq(String column, Object value) {
+    final Uri url;
     if (value is List) {
-      appendSearchParams(column, 'eq.{${_cleanFilterArray(value)}}');
+      url = appendSearchParams(column, 'eq.{${_cleanFilterArray(value)}}');
     } else {
-      appendSearchParams(column, 'eq.$value');
+      url = appendSearchParams(column, 'eq.$value');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose value on the stated [column] doesn't match the specified [value].
@@ -78,13 +77,14 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .neq('username', 'supabot');
   /// ```
-  PostgrestFilterBuilder<T> neq(String column, dynamic value) {
+  PostgrestFilterBuilder<T> neq(String column, Object value) {
+    final Uri url;
     if (value is List) {
-      appendSearchParams(column, 'neq.{${_cleanFilterArray(value)}}');
+      url = appendSearchParams(column, 'neq.{${_cleanFilterArray(value)}}');
     } else {
-      appendSearchParams(column, 'neq.$value');
+      url = appendSearchParams(column, 'neq.$value');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose value on the stated [column] is greater than the specified [value].
@@ -95,9 +95,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .gt('id', 1);
   /// ```
-  PostgrestFilterBuilder<T> gt(String column, dynamic value) {
-    appendSearchParams(column, 'gt.$value');
-    return this;
+  PostgrestFilterBuilder<T> gt(String column, Object value) {
+    return copyWithUrl(appendSearchParams(column, 'gt.$value'));
   }
 
   /// Finds all rows whose value on the stated [column] is greater than or equal to the specified [value].
@@ -108,9 +107,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .gte('id', 1);
   /// ```
-  PostgrestFilterBuilder<T> gte(String column, dynamic value) {
-    appendSearchParams(column, 'gte.$value');
-    return this;
+  PostgrestFilterBuilder<T> gte(String column, Object value) {
+    return copyWithUrl(appendSearchParams(column, 'gte.$value'));
   }
 
   /// Finds all rows whose value on the stated [column] is less than the specified [value].
@@ -121,9 +119,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .lt('id', 2);
   /// ```
-  PostgrestFilterBuilder<T> lt(String column, dynamic value) {
-    appendSearchParams(column, 'lt.$value');
-    return this;
+  PostgrestFilterBuilder<T> lt(String column, Object value) {
+    return copyWithUrl(appendSearchParams(column, 'lt.$value'));
   }
 
   /// Finds all rows whose value on the stated [column] is less than or equal to the specified [value].
@@ -134,9 +131,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .lte('id', 2);
   /// ```
-  PostgrestFilterBuilder<T> lte(String column, dynamic value) {
-    appendSearchParams(column, 'lte.$value');
-    return this;
+  PostgrestFilterBuilder<T> lte(String column, Object value) {
+    return copyWithUrl(appendSearchParams(column, 'lte.$value'));
   }
 
   /// Finds all rows whose value in the stated [column] matches the supplied [pattern] (case sensitive).
@@ -148,8 +144,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .like('username', '%supa%');
   /// ```
   PostgrestFilterBuilder<T> like(String column, String pattern) {
-    appendSearchParams(column, 'like.$pattern');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'like.$pattern'));
   }
 
   /// Match only rows where [column] matches all of [patterns] case-sensitively.
@@ -161,8 +156,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .likeAllOf('username', ['%supa%', '%bot%']);
   /// ```
   PostgrestFilterBuilder likeAllOf(String column, List<String> patterns) {
-    appendSearchParams(column, 'like(all).{${patterns.join(',')}}');
-    return this;
+    return copyWithUrl(
+        appendSearchParams(column, 'like(all).{${patterns.join(',')}}'));
   }
 
   /// Match only rows where [column] matches any of [patterns] case-sensitively.
@@ -174,8 +169,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .likeAnyOf('username', ['%supa%', '%bot%']);
   /// ```
   PostgrestFilterBuilder likeAnyOf(String column, List<String> patterns) {
-    appendSearchParams(column, 'like(any).{${patterns.join(',')}}');
-    return this;
+    return copyWithUrl(
+        appendSearchParams(column, 'like(any).{${patterns.join(',')}}'));
   }
 
   /// Finds all rows whose value in the stated [column] matches the supplied [pattern] (case insensitive).
@@ -187,8 +182,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .ilike('username', '%SUPA%');
   /// ```
   PostgrestFilterBuilder<T> ilike(String column, String pattern) {
-    appendSearchParams(column, 'ilike.$pattern');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'ilike.$pattern'));
   }
 
   /// Match only rows where [column] matches all of [patterns] case-insensitively.
@@ -200,8 +194,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .ilikeAllOf('username', ['%supa%', '%bot%']);
   /// ```
   PostgrestFilterBuilder ilikeAllOf(String column, List<String> patterns) {
-    appendSearchParams(column, 'ilike(all).{${patterns.join(',')}}');
-    return this;
+    return copyWithUrl(
+        appendSearchParams(column, 'ilike(all).{${patterns.join(',')}}'));
   }
 
   /// Match only rows where [column] matches any of [patterns] case-insensitively.
@@ -213,8 +207,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .ilikeAnyOf('username', ['%supa%', '%bot%']);
   /// ```
   PostgrestFilterBuilder ilikeAnyOf(String column, List<String> patterns) {
-    appendSearchParams(column, 'ilike(any).{${patterns.join(',')}}');
-    return this;
+    return copyWithUrl(
+        appendSearchParams(column, 'ilike(any).{${patterns.join(',')}}'));
   }
 
   /// A check for exact equality (null, true, false)
@@ -224,12 +218,11 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   /// await supabase
   ///     .from('users')
   ///     .select()
-  ///     .is_('data', null);
+  ///     .isFilter('data', null);
   /// ```
   // ignore: non_constant_identifier_names
-  PostgrestFilterBuilder<T> is_(String column, dynamic value) {
-    appendSearchParams(column, 'is.$value');
-    return this;
+  PostgrestFilterBuilder<T> isFilter(String column, bool? value) {
+    return copyWithUrl(appendSearchParams(column, 'is.$value'));
   }
 
   /// Finds all rows whose value on the stated [column] is found on the specified [values].
@@ -238,58 +231,94 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   /// await supabase
   ///     .from('users')
   ///     .select()
-  ///     .in_('status', ['ONLINE', 'OFFLINE']);
+  ///     .inFilter('status', ['ONLINE', 'OFFLINE']);
   /// ```
   // ignore: non_constant_identifier_names
-  PostgrestFilterBuilder<T> in_(String column, List values) {
-    appendSearchParams(column, 'in.(${_cleanFilterArray(values)})');
-    return this;
+  PostgrestFilterBuilder<T> inFilter(String column, List values) {
+    return copyWithUrl(
+        appendSearchParams(column, 'in.(${_cleanFilterArray(values)})'));
   }
 
   /// Finds all rows whose json, array, or range value on the stated [column] contains the values specified in [value].
   ///
+  /// Pass an array or use brackets in a string for an inclusive range and
+  /// use parenthesis in a string for an exclusive range:
   /// ```dart
-  /// await supabase
-  ///     .from('users')
-  ///     .select()
-  ///     .contains('age_range', '[1,2)');
+  /// // On array columns
+  /// final data = await supabase
+  ///   .from('issues')
+  ///   .select()
+  ///   .contains('tags', ['is:open', 'priority:low']);
+  ///
+  /// // On range columns
+  /// // Finds rows where the `during` column contains the range between
+  /// // `2000-01-01 00:00` inclusive and `2000-01-01 23:59` exclusive
+  /// final data = await supabase
+  ///   .from('reservations')
+  ///   .select()
+  ///   .contains('during', '[2000-01-01 13:00, 2000-01-01 13:30)');
+  ///
+  /// //On jsonb columns
+  /// final data = await supabase
+  ///   .from('users')
+  ///   .select('name')
+  ///   .contains('address', { 'street': 'Melrose Place' });
   /// ```
-  PostgrestFilterBuilder<T> contains(String column, dynamic value) {
+  PostgrestFilterBuilder<T> contains(String column, Object value) {
+    final Uri url;
     if (value is String) {
       // range types can be inclusive '[', ']' or exclusive '(', ')' so just
       // keep it simple and accept a string
-      appendSearchParams(column, 'cs.$value');
+      url = appendSearchParams(column, 'cs.$value');
     } else if (value is List) {
       // array
-      appendSearchParams(column, 'cs.{${_cleanFilterArray(value)}}');
+      url = appendSearchParams(column, 'cs.{${_cleanFilterArray(value)}}');
     } else {
       // json
-      appendSearchParams(column, 'cs.${json.encode(value)}');
+      url = appendSearchParams(column, 'cs.${json.encode(value)}');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose json, array, or range value on the stated [column] is contained by the specified [value].
   ///
+  /// Pass an array or use brackets in a string for an inclusive range and
+  /// use parenthesis in a string for an exclusive range
   /// ```dart
-  /// await supabase
-  ///     .from('users')
-  ///     .select()
-  ///     .containedBy('age_range', '[1,2)');
+  /// // On array columns
+  /// final data = await supabase
+  ///   .from('classes')
+  ///   .select('name')
+  ///   .containedBy('days', ['monday', 'tuesday', 'wednesday', 'friday']);
+  ///
+  /// // On range columns
+  /// // Finds rows where the `during` column is contained between
+  /// // `2000-01-01 00:00` inclusive and `2000-01-01 23:59` exclusive
+  /// final data = await supabase
+  ///   .from('reservations')
+  ///   .select()
+  ///   .containedBy('during', '[2000-01-01 00:00, 2000-01-01 23:59)');
+  ///
+  /// // On jsonb columns
+  /// final data = await supabase
+  ///   .from('users')
+  ///   .select('name')
+  ///   .containedBy('address', {'postcode': 90210});
   /// ```
-  PostgrestFilterBuilder<T> containedBy(String column, dynamic value) {
+  PostgrestFilterBuilder<T> containedBy(String column, Object value) {
+    final Uri url;
     if (value is String) {
       // range types can be inclusive '[', ']' or exclusive '(', ')' so just
       // keep it simple and accept a string
-      appendSearchParams(column, 'cd.$value');
+      url = appendSearchParams(column, 'cd.$value');
     } else if (value is List) {
       // array
-      appendSearchParams(column, 'cd.{${_cleanFilterArray(value)}}');
+      url = appendSearchParams(column, 'cd.{${_cleanFilterArray(value)}}');
     } else {
       // json
-      appendSearchParams(column, 'cd.${json.encode(value)}');
+      url = appendSearchParams(column, 'cd.${json.encode(value)}');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose range value on the stated [column] is strictly to the left of the specified [range].
@@ -301,8 +330,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .sl('age_range', '[2,25)');
   /// ```
   PostgrestFilterBuilder<T> rangeLt(String column, String range) {
-    appendSearchParams(column, 'sl.$range');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'sl.$range'));
   }
 
   /// Finds all rows whose range value on the stated [column] is strictly to the right of the specified [range].
@@ -314,8 +342,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .rangeGt('age_range', '[2,25)');
   /// ```
   PostgrestFilterBuilder<T> rangeGt(String column, String range) {
-    appendSearchParams(column, 'sr.$range');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'sr.$range'));
   }
 
   /// Finds all rows whose range value on the stated [column] does not extend to the left of the specified [range].
@@ -327,8 +354,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .rangeGte('age_range', '[2,25)');
   /// ```
   PostgrestFilterBuilder<T> rangeGte(String column, String range) {
-    appendSearchParams(column, 'nxl.$range');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'nxl.$range'));
   }
 
   /// Finds all rows whose range value on the stated [column] does not extend to the right of the specified [range].
@@ -340,8 +366,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .rangeLte('age_range', '[2,25)');
   /// ```
   PostgrestFilterBuilder<T> rangeLte(String column, String range) {
-    appendSearchParams(column, 'nxr.$range');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'nxr.$range'));
   }
 
   /// Finds all rows whose range value on the stated [column] is adjacent to the specified [range].
@@ -353,8 +378,7 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .rangeAdjacent('age_range', '[2,25)');
   /// ```
   PostgrestFilterBuilder<T> rangeAdjacent(String column, String range) {
-    appendSearchParams(column, 'adj.$range');
-    return this;
+    return copyWithUrl(appendSearchParams(column, 'adj.$range'));
   }
 
   /// Finds all rows whose array or range value on the stated [column] overlaps (has a value in common) with the specified [value].
@@ -365,16 +389,17 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .select()
   ///     .overlaps('age_range', '[2,25)');
   /// ```
-  PostgrestFilterBuilder<T> overlaps(String column, dynamic value) {
-    if (value is String) {
+  PostgrestFilterBuilder<T> overlaps(String column, Object value) {
+    final Uri url;
+    if (value is List) {
+      // array
+      url = appendSearchParams(column, 'ov.{${_cleanFilterArray(value)}}');
+    } else {
       // range types can be inclusive '[', ']' or exclusive '(', ')' so just
       // keep it simple and accept a string
-      appendSearchParams(column, 'ov.$value');
-    } else if (value is List) {
-      // array
-      appendSearchParams(column, 'ov.{${_cleanFilterArray(value)}}');
+      url = appendSearchParams(column, 'ov.$value');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose text or tsvector value on the stated [column] matches the tsquery in [query].
@@ -403,8 +428,8 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
       typePart = 'w';
     }
     final configPart = config == null ? '' : '($config)';
-    appendSearchParams(column, '${typePart}fts$configPart.$query');
-    return this;
+    return copyWithUrl(
+        appendSearchParams(column, '${typePart}fts$configPart.$query'));
   }
 
   /// Finds all rows whose [column] satisfies the filter.
@@ -416,23 +441,24 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///     .filter('username', 'eq', 'supabot');
   /// ```
   PostgrestFilterBuilder<T> filter(
-      String column, String operator, dynamic value) {
+      String column, String operator, Object? value) {
+    final Uri url;
     if (value is List) {
       if (operator == "in") {
-        appendSearchParams(
+        url = appendSearchParams(
           column,
           '$operator.(${_cleanFilterArray(value)})',
         );
       } else {
-        appendSearchParams(
+        url = appendSearchParams(
           column,
           '$operator.{${_cleanFilterArray(value)}}',
         );
       }
     } else {
-      appendSearchParams(column, '$operator.$value');
+      url = appendSearchParams(column, '$operator.$value');
     }
-    return this;
+    return copyWithUrl(url);
   }
 
   /// Finds all rows whose columns match the specified [query] object.
@@ -444,8 +470,16 @@ class PostgrestFilterBuilder<T> extends PostgrestTransformBuilder<T> {
   ///   'status': 'ONLINE',
   /// });
   /// ```
-  PostgrestFilterBuilder<T> match(Map query) {
-    query.forEach((k, v) => appendSearchParams('$k', 'eq.$v'));
-    return this;
+  PostgrestFilterBuilder<T> match(Map<String, Object> query) {
+    var url = _url;
+    query.forEach((k, v) => url = appendSearchParams(k, 'eq.$v', url));
+    return copyWithUrl(url);
+  }
+
+  @override
+  PostgrestFilterBuilder<T> setHeader(String key, String value) {
+    return PostgrestFilterBuilder(
+      _copyWith(headers: {..._headers, key: value}),
+    );
   }
 }

@@ -12,7 +12,13 @@ import 'package:gotrue/src/types/fetch_options.dart';
 import 'package:http/http.dart';
 import 'package:jwt_decode/jwt_decode.dart';
 import 'package:meta/meta.dart';
+import 'package:retry/retry.dart';
 import 'package:rxdart/subjects.dart';
+import 'package:logging/logging.dart';
+
+import 'broadcast_stub.dart' if (dart.library.html) './broadcast_web.dart'
+    as web;
+import 'version.dart';
 
 part 'gotrue_mfa_api.dart';
 
@@ -27,7 +33,7 @@ part 'gotrue_mfa_api.dart';
 ///
 /// [asyncStorage] local storage to store pkce code verifiers. Required when using the pkce flow.
 ///
-/// Set [flowType] to `AuthFlowType.pkce` to perform pkce auth flow.
+/// Set [flowType] to [AuthFlowType.implicit] to perform old implicit auth flow.
 /// {@endtemplate}
 class GoTrueClient {
   /// Namespace for the GoTrue API methods.
@@ -50,14 +56,10 @@ class GoTrueClient {
 
   late bool _autoRefreshToken;
 
-  Timer? _refreshTokenTimer;
-
-  int _refreshTokenRetryCount = 0;
+  Timer? _autoRefreshTicker;
 
   /// Completer to combine multiple simultaneous token refresh requests.
   Completer<AuthResponse>? _refreshTokenCompleter;
-
-  bool _isRefreshingToken = false;
 
   final _onAuthStateChangeController = BehaviorSubject<AuthState>();
   final _onAuthStateChangeControllerSync =
@@ -87,6 +89,13 @@ class GoTrueClient {
 
   final AuthFlowType _flowType;
 
+  final _log = Logger('supabase.auth');
+
+  /// Proxy to the web BroadcastChannel API. Should be null on non-web platforms.
+  BroadcastChannel? _broadcastChannel;
+
+  StreamSubscription? _broadcastChannelSubscription;
+
   /// {@macro gotrue_client}
   GoTrueClient({
     String? url,
@@ -94,38 +103,81 @@ class GoTrueClient {
     bool? autoRefreshToken,
     Client? httpClient,
     GotrueAsyncStorage? asyncStorage,
-    AuthFlowType flowType = AuthFlowType.implicit,
+    AuthFlowType flowType = AuthFlowType.pkce,
   })  : _url = url ?? Constants.defaultGotrueUrl,
-        _headers = headers ?? {},
+        _headers = {
+          ...Constants.defaultHeaders,
+          ...?headers,
+        },
         _httpClient = httpClient,
         _asyncStorage = asyncStorage,
         _flowType = flowType {
     _autoRefreshToken = autoRefreshToken ?? true;
 
     final gotrueUrl = url ?? Constants.defaultGotrueUrl;
-    final gotrueHeader = {
-      ...Constants.defaultHeaders,
-      if (headers != null) ...headers,
-    };
+    _log.config(
+        'Initialize GoTrueClient v$version with url: $_url, autoRefreshToken: $_autoRefreshToken, flowType: $_flowType, tickDuration: ${Constants.autoRefreshTickDuration}, tickThreshold: ${Constants.autoRefreshTickThreshold}');
+    _log.finest('Initialize with headers: $_headers');
     admin = GoTrueAdminApi(
       gotrueUrl,
-      headers: gotrueHeader,
+      headers: _headers,
       httpClient: httpClient,
     );
     mfa = GoTrueMFAApi(
       client: this,
       fetch: _fetch,
     );
+    if (_autoRefreshToken) {
+      startAutoRefresh();
+    }
+
+    _mayStartBroadcastChannel();
   }
 
   /// Getter for the headers
   Map<String, String> get headers => _headers;
 
   /// Returns the current logged in user, if any;
+  ///
+  /// Use [currentSession] to determine whether the user has an active session,
+  /// because [currentUser] can be non-null without an active session, such as
+  /// when the user signed up using email and password but has not confirmed
+  /// their email address.
   User? get currentUser => _currentUser;
 
   /// Returns the current session, if any;
   Session? get currentSession => _currentSession;
+
+  /// Creates a new anonymous user.
+  ///
+  /// Returns An `AuthResponse` with a session where the `is_anonymous` claim
+  /// in the access token JWT is set to true
+  Future<AuthResponse> signInAnonymously({
+    Map<String, dynamic>? data,
+    String? captchaToken,
+  }) async {
+    final response = await _fetch.request(
+      '$_url/signup',
+      RequestMethodType.post,
+      options: GotrueRequestOptions(
+        headers: _headers,
+        body: {
+          'data': data ?? {},
+          'gotrue_meta_security': {'captcha_token': captchaToken},
+        },
+      ),
+    );
+
+    final authResponse = AuthResponse.fromJson(response);
+
+    final session = authResponse.session;
+    if (session != null) {
+      _saveSession(session);
+      notifyAllSubscribers(AuthChangeEvent.signedIn);
+    }
+
+    return authResponse;
+  }
 
   /// Creates a new user.
   ///
@@ -155,8 +207,6 @@ class GoTrueClient {
   }) async {
     assert((email != null && phone == null) || (email == null && phone != null),
         'You must provide either an email or phone number');
-
-    _removeSession();
 
     late final Map<String, dynamic> response;
 
@@ -210,7 +260,7 @@ class GoTrueClient {
     final session = authResponse.session;
     if (session != null) {
       _saveSession(session);
-      _notifyAllSubscribers(AuthChangeEvent.signedIn);
+      notifyAllSubscribers(AuthChangeEvent.signedIn);
     }
 
     return authResponse;
@@ -223,8 +273,6 @@ class GoTrueClient {
     required String password,
     String? captchaToken,
   }) async {
-    _removeSession();
-
     late final Map<String, dynamic> response;
 
     if (email != null) {
@@ -265,21 +313,21 @@ class GoTrueClient {
 
     if (authResponse.session?.accessToken != null) {
       _saveSession(authResponse.session!);
-      _notifyAllSubscribers(AuthChangeEvent.signedIn);
+      notifyAllSubscribers(AuthChangeEvent.signedIn);
     }
     return authResponse;
   }
 
   /// Generates a link to log in an user via a third-party provider.
   Future<OAuthResponse> getOAuthSignInUrl({
-    required Provider provider,
+    required OAuthProvider provider,
     String? redirectTo,
     String? scopes,
     Map<String, String>? queryParams,
   }) async {
-    _removeSession();
-    return _handleProviderSignIn(
+    return _getUrlForProvider(
       provider,
+      url: '$_url/authorize',
       redirectTo: redirectTo,
       scopes: scopes,
       queryParams: queryParams,
@@ -287,12 +335,18 @@ class GoTrueClient {
   }
 
   /// Verifies the PKCE code verifyer and retrieves a session.
-  Future<AuthResponse> exchangeCodeForSession(String authCode) async {
+  Future<AuthSessionUrlResponse> exchangeCodeForSession(String authCode) async {
     assert(_asyncStorage != null,
         'You need to provide asyncStorage to perform pkce flow.');
 
-    final codeVerifier = await _asyncStorage!
+    final codeVerifierRawString = await _asyncStorage!
         .getItem(key: '${Constants.defaultStorageKey}-code-verifier');
+    if (codeVerifierRawString == null) {
+      throw AuthException('Code verifier could not be found in local storage.');
+    }
+    final codeVerifier = codeVerifierRawString.split('/').first;
+    final eventName = codeVerifierRawString.split('/').last;
+    final redirectType = AuthChangeEventExtended.fromString(eventName);
 
     final Map<String, dynamic> response = await _fetch.request(
       '$_url/token',
@@ -312,20 +366,23 @@ class GoTrueClient {
     await _asyncStorage!
         .removeItem(key: '${Constants.defaultStorageKey}-code-verifier');
 
-    final authResponse = AuthResponse.fromJson(response);
+    final authSessionUrlResponse = AuthSessionUrlResponse(
+        session: Session.fromJson(response)!, redirectType: redirectType?.name);
 
-    final session = authResponse.session;
-    if (session != null) {
-      _saveSession(session);
-      _notifyAllSubscribers(AuthChangeEvent.signedIn);
+    final session = authSessionUrlResponse.session;
+    _saveSession(session);
+    if (redirectType == AuthChangeEvent.passwordRecovery) {
+      notifyAllSubscribers(AuthChangeEvent.passwordRecovery);
+    } else {
+      notifyAllSubscribers(AuthChangeEvent.signedIn);
     }
 
-    return authResponse;
+    return authSessionUrlResponse;
   }
 
   /// Allows signing in with an ID token issued by certain supported providers.
   /// The [idToken] is verified for validity and a new session is established.
-  /// This method of signing in only supports [Provider.google] or [Provider.apple].
+  /// This method of signing in only supports [OAuthProvider.google], [OAuthProvider.apple], [OAuthProvider.kakao] or [OAuthProvider.keycloak].
   ///
   /// If the ID token contains an `at_hash` claim, then [accessToken] must be
   /// provided to compare its hash with the value in the ID token.
@@ -339,17 +396,18 @@ class GoTrueClient {
   /// This method is experimental.
   @experimental
   Future<AuthResponse> signInWithIdToken({
-    required Provider provider,
+    required OAuthProvider provider,
     required String idToken,
     String? accessToken,
     String? nonce,
     String? captchaToken,
   }) async {
-    _removeSession();
-
-    if (provider != Provider.google && provider != Provider.apple) {
-      throw AuthException('Provider must either be '
-          '${Provider.google.name} or ${Provider.apple.name}.');
+    if (provider != OAuthProvider.google &&
+        provider != OAuthProvider.apple &&
+        provider != OAuthProvider.kakao &&
+        provider != OAuthProvider.keycloak) {
+      throw AuthException('Provider must be '
+          '${OAuthProvider.google.name}, ${OAuthProvider.apple.name}, ${OAuthProvider.kakao.name} or ${OAuthProvider.keycloak.name}.');
     }
 
     final response = await _fetch.request(
@@ -358,7 +416,7 @@ class GoTrueClient {
       options: GotrueRequestOptions(
         headers: _headers,
         body: {
-          'provider': provider.name,
+          'provider': provider.snakeCase,
           'id_token': idToken,
           'nonce': nonce,
           'gotrue_meta_security': {'captcha_token': captchaToken},
@@ -377,7 +435,7 @@ class GoTrueClient {
     }
 
     _saveSession(authResponse.session!);
-    _notifyAllSubscribers(AuthChangeEvent.signedIn);
+    notifyAllSubscribers(AuthChangeEvent.signedIn);
 
     return authResponse;
   }
@@ -408,8 +466,6 @@ class GoTrueClient {
     String? captchaToken,
     OtpChannel channel = OtpChannel.sms,
   }) async {
-    _removeSession();
-
     if (email != null) {
       String? codeChallenge;
       if (_flowType == AuthFlowType.pkce) {
@@ -466,28 +522,33 @@ class GoTrueClient {
   /// [phone] is the user's phone number WITH international prefix
   ///
   /// [token] is the token that user was sent to their mobile phone
+  ///
+  /// [tokenHash] is the token used in an email link
   Future<AuthResponse> verifyOTP({
     String? email,
     String? phone,
-    required String token,
+    String? token,
     required OtpType type,
     String? redirectTo,
     String? captchaToken,
+    String? tokenHash,
   }) async {
-    assert((email != null && phone == null) || (email == null && phone != null),
+    assert(
+        ((email != null && phone == null) ||
+                (email == null && phone != null)) ||
+            (tokenHash != null),
         '`email` or `phone` needs to be specified.');
-
-    if (type != OtpType.emailChange && type != OtpType.phoneChange) {
-      _removeSession();
-    }
+    assert(token != null || tokenHash != null,
+        '`token` or `tokenHash` needs to be specified.');
 
     final body = {
       if (email != null) 'email': email,
       if (phone != null) 'phone': phone,
-      'token': token,
+      if (token != null) 'token': token,
       'type': type.snakeCase,
       'redirect_to': redirectTo,
       'gotrue_meta_security': {'captchaToken': captchaToken},
+      if (tokenHash != null) 'token_hash': tokenHash,
     };
     final fetchOptions = GotrueRequestOptions(headers: _headers, body: body);
     final response = await _fetch
@@ -495,22 +556,90 @@ class GoTrueClient {
 
     final authResponse = AuthResponse.fromJson(response);
 
-    if (authResponse.session != null) {
-      _saveSession(authResponse.session!);
-      _notifyAllSubscribers(AuthChangeEvent.signedIn);
+    if (authResponse.session == null) {
+      throw AuthException(
+        'An error occurred on token verification.',
+      );
     }
+
+    _saveSession(authResponse.session!);
+    notifyAllSubscribers(type == OtpType.recovery
+        ? AuthChangeEvent.passwordRecovery
+        : AuthChangeEvent.signedIn);
 
     return authResponse;
   }
 
-  /// Force refreshes the session including the user data in case it was updated
-  /// in a different session.
-  Future<AuthResponse> refreshSession() async {
-    if (currentSession?.accessToken == null) {
-      throw AuthException('Not logged in.');
+  /// Obtains a URL to perform a single-sign on using an enterprise Identity
+  /// Provider. The redirect URL is implementation and SSO protocol specific.
+  ///
+  /// You can use it by providing a SSO domain. Typically you can extract this
+  /// domain by asking users for their email address. If this domain is
+  /// registered on the Auth instance the redirect will use that organization's
+  /// currently active SSO Identity Provider for the login.
+  ///
+  /// If you have built an organization-specific login page, you can use the
+  /// organization's SSO Identity Provider UUID directly instead.
+  Future<String> getSSOSignInUrl({
+    String? providerId,
+    String? domain,
+    String? redirectTo,
+    String? captchaToken,
+  }) async {
+    assert(
+      providerId != null || domain != null,
+      'providerId or domain has to be provided.',
+    );
+
+    String? codeChallenge;
+    String? codeChallengeMethod;
+    if (_flowType == AuthFlowType.pkce) {
+      assert(_asyncStorage != null,
+          'You need to provide asyncStorage to perform pkce flow.');
+      final codeVerifier = generatePKCEVerifier();
+      await _asyncStorage!.setItem(
+          key: '${Constants.defaultStorageKey}-code-verifier',
+          value: codeVerifier);
+      codeChallenge = generatePKCEChallenge(codeVerifier);
+      codeChallengeMethod = codeVerifier == codeChallenge ? 'plain' : 's256';
     }
 
-    return await _callRefreshToken();
+    final res = await _fetch.request('$_url/sso', RequestMethodType.post,
+        options: GotrueRequestOptions(
+          body: {
+            if (providerId != null) 'provider_id': providerId,
+            if (domain != null) 'domain': domain,
+            if (redirectTo != null) 'redirect_to': redirectTo,
+            if (captchaToken != null)
+              'gotrue_meta_security': {'captcha_token': captchaToken},
+            'skip_http_redirect': true,
+            'code_challenge': codeChallenge,
+            'code_challenge_method': codeChallengeMethod,
+          },
+          headers: _headers,
+        ));
+
+    return res['url'] as String;
+  }
+
+  /// Returns a new session, regardless of expiry status.
+  /// Takes in an optional current session. If not passed in, then refreshSession() will attempt to retrieve it from getSession().
+  /// If the current session's refresh token is invalid, an error will be thrown.
+  Future<AuthResponse> refreshSession([String? refreshToken]) async {
+    if (currentSession?.accessToken == null) {
+      _log.warning("Can't refresh session, no current session found.");
+      throw AuthSessionMissingException();
+    }
+    _log.info('Refresh session');
+
+    final currentSessionRefreshToken =
+        refreshToken ?? _currentSession?.refreshToken;
+
+    if (currentSessionRefreshToken == null) {
+      throw AuthSessionMissingException();
+    }
+
+    return await _callRefreshToken(currentSessionRefreshToken);
   }
 
   /// Sends a reauthentication OTP to the user's email or phone number.
@@ -519,7 +648,7 @@ class GoTrueClient {
   Future<void> reauthenticate() async {
     final session = currentSession;
     if (session == null) {
-      throw AuthException('Not logged in.');
+      throw AuthSessionMissingException();
     }
 
     final options =
@@ -555,10 +684,6 @@ class GoTrueClient {
           'phone must be provided for type ${type.name}');
     }
 
-    if (type != OtpType.emailChange && type != OtpType.phoneChange) {
-      _removeSession();
-    }
-
     final body = {
       if (email != null) 'email': email,
       if (phone != null) 'phone': phone,
@@ -585,6 +710,23 @@ class GoTrueClient {
     }
   }
 
+  /// Gets the current user details from current session or custom [jwt]
+  Future<UserResponse> getUser([String? jwt]) async {
+    if (jwt == null && currentSession?.accessToken == null) {
+      throw AuthSessionMissingException();
+    }
+    final options = GotrueRequestOptions(
+      headers: _headers,
+      jwt: jwt ?? currentSession?.accessToken,
+    );
+    final response = await _fetch.request(
+      '$_url/user',
+      RequestMethodType.get,
+      options: options,
+    );
+    return UserResponse.fromJson(response);
+  }
+
   /// Updates user data, if there is a logged in user.
   Future<UserResponse> updateUser(
     UserAttributes attributes, {
@@ -592,7 +734,7 @@ class GoTrueClient {
   }) async {
     final accessToken = currentSession?.accessToken;
     if (accessToken == null) {
-      throw AuthException('Not logged in.');
+      throw AuthSessionMissingException();
     }
 
     final body = attributes.toJson();
@@ -608,7 +750,7 @@ class GoTrueClient {
 
     _currentUser = userResponse.user;
     _currentSession = currentSession?.copyWith(user: userResponse.user);
-    _notifyAllSubscribers(AuthChangeEvent.userUpdated);
+    notifyAllSubscribers(AuthChangeEvent.userUpdated);
 
     return userResponse;
   }
@@ -616,9 +758,9 @@ class GoTrueClient {
   /// Sets the session data from refresh_token and returns the current session.
   Future<AuthResponse> setSession(String refreshToken) async {
     if (refreshToken.isEmpty) {
-      throw AuthException('No current session.');
+      throw AuthSessionMissingException('Refresh token cannot be empty');
     }
-    return await _callRefreshToken(refreshToken: refreshToken);
+    return await _callRefreshToken(refreshToken);
   }
 
   /// Gets the session data from a magic link or oauth2 callback URL
@@ -626,26 +768,6 @@ class GoTrueClient {
     Uri originUrl, {
     bool storeSession = true,
   }) async {
-    if (_flowType == AuthFlowType.pkce) {
-      final authCode = originUrl.queryParameters['code'];
-      if (authCode == null) {
-        throw AuthPKCEGrantCodeExchangeError(
-            'No code detected in query parameters.');
-      }
-      final data = await exchangeCodeForSession(authCode);
-      final session = data.session;
-      if (session == null) {
-        throw AuthPKCEGrantCodeExchangeError(
-            'No session found for the auth code.');
-      }
-
-      if (storeSession == true) {
-        _saveSession(session);
-        _notifyAllSubscribers(AuthChangeEvent.signedIn);
-      }
-
-      return AuthSessionUrlResponse(session: session, redirectType: null);
-    }
     var url = originUrl;
     if (originUrl.hasQuery) {
       final decoded = originUrl.toString().replaceAll('#', '&');
@@ -656,8 +778,23 @@ class GoTrueClient {
     }
 
     final errorDescription = url.queryParameters['error_description'];
+    final errorCode = url.queryParameters['error_code'];
+    final error = url.queryParameters['error'];
     if (errorDescription != null) {
-      throw _notifyException(AuthException(errorDescription));
+      throw AuthException(
+        errorDescription,
+        statusCode: errorCode,
+        code: error,
+      );
+    }
+
+    if (_flowType == AuthFlowType.pkce) {
+      final authCode = originUrl.queryParameters['code'];
+      if (authCode == null) {
+        throw AuthPKCEGrantCodeExchangeError(
+            'No code detected in query parameters.');
+      }
+      return await exchangeCodeForSession(authCode);
     }
 
     final accessToken = url.queryParameters['access_token'];
@@ -668,26 +805,21 @@ class GoTrueClient {
     final providerRefreshToken = url.queryParameters['provider_refresh_token'];
 
     if (accessToken == null) {
-      throw _notifyException(AuthException('No access_token detected.'));
+      throw AuthException('No access_token detected.');
     }
     if (expiresIn == null) {
-      throw _notifyException(AuthException('No expires_in detected.'));
+      throw AuthException('No expires_in detected.');
     }
     if (refreshToken == null) {
-      throw _notifyException(AuthException('No refresh_token detected.'));
+      throw AuthException('No refresh_token detected.');
     }
     if (tokenType == null) {
-      throw _notifyException(AuthException('No token_type detected.'));
+      throw AuthException('No token_type detected.');
     }
 
-    final headers = {..._headers};
-    headers['Authorization'] = 'Bearer $accessToken';
-    final options = GotrueRequestOptions(headers: headers);
-    final response = await _fetch.request('$_url/user', RequestMethodType.get,
-        options: options);
-    final user = UserResponse.fromJson(response).user;
+    final user = (await getUser(accessToken)).user;
     if (user == null) {
-      throw _notifyException(AuthException('No user found.'));
+      throw AuthException('No user found.');
     }
 
     final session = Session(
@@ -705,9 +837,9 @@ class GoTrueClient {
     if (storeSession == true) {
       _saveSession(session);
       if (redirectType == 'recovery') {
-        _notifyAllSubscribers(AuthChangeEvent.passwordRecovery);
+        notifyAllSubscribers(AuthChangeEvent.passwordRecovery);
       } else {
-        _notifyAllSubscribers(AuthChangeEvent.signedIn);
+        notifyAllSubscribers(AuthChangeEvent.signedIn);
       }
     }
 
@@ -716,17 +848,20 @@ class GoTrueClient {
 
   /// Signs out the current user, if there is a logged in user.
   ///
+  /// [scope] determines which sessions should be logged out.
+  ///
   /// If using [SignOutScope.others] scope, no [AuthChangeEvent.signedOut] event is fired!
   Future<void> signOut({
-    SignOutScope scope = SignOutScope.global,
+    SignOutScope scope = SignOutScope.local,
   }) async {
+    _log.info('Signing out user with scope: $scope');
     final accessToken = currentSession?.accessToken;
 
     if (scope != SignOutScope.others) {
       _removeSession();
       await _asyncStorage?.removeItem(
           key: '${Constants.defaultStorageKey}-code-verifier');
-      _notifyAllSubscribers(AuthChangeEvent.signedOut);
+      notifyAllSubscribers(AuthChangeEvent.signedOut);
     }
 
     if (accessToken != null) {
@@ -734,8 +869,11 @@ class GoTrueClient {
         await admin.signOut(accessToken, scope: scope);
       } on AuthException catch (error) {
         // ignore 401s since an invalid or expired JWT should sign out the current session
+        // ignore 403s since user might not exist anymore
         // ignore 404s since user might not exist anymore
-        if (error.statusCode != '401' && error.statusCode != '404') {
+        if (error.statusCode != '401' &&
+            error.statusCode != '403' &&
+            error.statusCode != '404') {
           rethrow;
         }
       }
@@ -754,8 +892,9 @@ class GoTrueClient {
           'You need to provide asyncStorage to perform pkce flow.');
       final codeVerifier = generatePKCEVerifier();
       await _asyncStorage!.setItem(
-          key: '${Constants.defaultStorageKey}-code-verifier',
-          value: codeVerifier);
+        key: '${Constants.defaultStorageKey}-code-verifier',
+        value: '$codeVerifier/${AuthChangeEvent.passwordRecovery.name}',
+      );
       codeChallenge = generatePKCEChallenge(codeVerifier);
     }
 
@@ -778,56 +917,204 @@ class GoTrueClient {
     );
   }
 
-  /// Recover session from persisted session json string.
-  /// Persisted session json has the format { currentSession, expiresAt }
+  /// Gets all the identities linked to a user.
+  Future<List<UserIdentity>> getUserIdentities() async {
+    final res = await getUser();
+    return res.user?.identities ?? [];
+  }
+
+  /// Returns the URL to link the user's identity with an OAuth provider.
+  Future<OAuthResponse> getLinkIdentityUrl(
+    OAuthProvider provider, {
+    String? redirectTo,
+    String? scopes,
+    Map<String, String>? queryParams,
+  }) async {
+    final urlResponse = await _getUrlForProvider(
+      provider,
+      url: '$_url/user/identities/authorize',
+      redirectTo: redirectTo,
+      scopes: scopes,
+      queryParams: queryParams,
+      skipBrowserRedirect: true,
+    );
+    final res = await _fetch.request(urlResponse.url, RequestMethodType.get,
+        options: GotrueRequestOptions(
+          headers: _headers,
+          jwt: _currentSession?.accessToken,
+        ));
+    return OAuthResponse(provider: provider, url: res['url']);
+  }
+
+  /// Unlinks an identity from a user by deleting it.
   ///
-  /// currentSession: session json object, expiresAt: timestamp in seconds
-  Future<AuthResponse> recoverSession(String jsonStr) async {
-    final persistedData = json.decode(jsonStr) as Map<String, dynamic>;
-    final currentSession =
-        persistedData['currentSession'] as Map<String, dynamic>?;
-    final expiresAt = persistedData['expiresAt'] as int?;
-    if (currentSession == null) {
-      throw _notifyException(AuthException('Missing currentSession.'));
-    }
-    if (expiresAt == null) {
-      throw _notifyException(AuthException('Missing expiresAt.'));
-    }
+  /// The user will no longer be able to sign in with that identity once it's unlinked.
+  Future<void> unlinkIdentity(UserIdentity identity) async {
+    await _fetch.request(
+      '$_url/user/identities/${identity.identityId}',
+      RequestMethodType.delete,
+      options: GotrueRequestOptions(
+        headers: headers,
+        jwt: _currentSession?.accessToken,
+      ),
+    );
+  }
 
-    final session = Session.fromJson(currentSession);
+  /// Set the initial session to the session obtained from local storage
+  Future<void> setInitialSession(String jsonStr) async {
+    final session = Session.fromJson(json.decode(jsonStr));
     if (session == null) {
-      throw _notifyException(AuthException('Current session is missing data.'));
+      // sign out to delete the local storage from supabase_flutter
+      await signOut();
+      throw notifyException(AuthException('Initial session is missing data.'));
     }
 
-    final timeNow = (DateTime.now().millisecondsSinceEpoch / 1000).round();
-    if (expiresAt < (timeNow + Constants.expiryMargin.inSeconds)) {
-      if (_autoRefreshToken && session.refreshToken != null) {
-        return await _callRefreshToken(
-          refreshToken: session.refreshToken,
-          accessToken: session.accessToken,
+    _currentSession = session;
+    _currentUser = session.user;
+    notifyAllSubscribers(AuthChangeEvent.initialSession);
+  }
+
+  /// Recover session from stringified [Session].
+  Future<AuthResponse> recoverSession(String jsonStr) async {
+    try {
+      final session = Session.fromJson(json.decode(jsonStr));
+      if (session == null) {
+        _log.warning("Can't recover session from string, session is null");
+        await signOut();
+        throw notifyException(
+          AuthException('Current session is missing data.'),
         );
-      } else {
-        throw _notifyException(AuthException('Session expired.'));
       }
-    } else {
-      final shouldEmitEvent = _currentSession == null ||
-          _currentSession?.user.id != session.user.id;
-      _saveSession(session);
 
-      if (shouldEmitEvent) _notifyAllSubscribers(AuthChangeEvent.signedIn);
+      if (session.isExpired) {
+        _log.fine('Session from recovery is expired');
+        final refreshToken = session.refreshToken;
+        if (_autoRefreshToken && refreshToken != null) {
+          return await _callRefreshToken(refreshToken);
+        } else {
+          await signOut();
+          throw notifyException(AuthException('Session expired.'));
+        }
+      } else {
+        final shouldEmitEvent = _currentSession == null ||
+            _currentSession?.user.id != session.user.id;
+        _saveSession(session);
 
-      return AuthResponse(session: session);
+        if (shouldEmitEvent) {
+          notifyAllSubscribers(AuthChangeEvent.tokenRefreshed);
+        }
+
+        return AuthResponse(session: session);
+      }
+    } catch (error) {
+      notifyException(error);
+      rethrow;
     }
   }
 
-  /// return provider url only
-  Future<OAuthResponse> _handleProviderSignIn(
-    Provider provider, {
+  /// Starts an auto-refresh process in the background. Close to the time of expiration a process is started to
+  /// refresh the session. If refreshing fails it will be retried for as long as necessary.
+  void startAutoRefresh() async {
+    stopAutoRefresh();
+
+    _log.fine('Starting auto refresh');
+    _autoRefreshTicker = Timer.periodic(
+      Constants.autoRefreshTickDuration,
+      (Timer t) => _autoRefreshTokenTick(),
+    );
+
+    await Future.delayed(Duration.zero);
+    await _autoRefreshTokenTick();
+  }
+
+  /// Stops an active auto refresh process running in the background (if any).
+  void stopAutoRefresh() {
+    _log.fine('Stopping auto refresh');
+    _autoRefreshTicker?.cancel();
+    _autoRefreshTicker = null;
+  }
+
+  Future<void> _autoRefreshTokenTick() async {
+    try {
+      final now = DateTime.now();
+      final refreshToken = _currentSession?.refreshToken;
+      if (refreshToken == null) {
+        return;
+      }
+
+      final expiresAt = _currentSession?.expiresAt;
+      if (expiresAt == null) {
+        return;
+      }
+
+      final expiresInTicks =
+          (DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000)
+                      .difference(now)
+                      .inMilliseconds /
+                  Constants.autoRefreshTickDuration.inMilliseconds)
+              .floor();
+
+      _log.finer('Access token expires in $expiresInTicks ticks');
+
+      // Only tick if the next tick comes after the retry threshold
+      if (expiresInTicks <= Constants.autoRefreshTickThreshold) {
+        await _callRefreshToken(refreshToken);
+      }
+    } catch (error) {
+      // Do nothing. JS client prints here, but error is already tracked via
+      // [notifyException]
+    }
+  }
+
+  /// Generates a new JWT.
+  /// [refreshToken] A valid refresh token that was returned on login.
+  Future<AuthResponse> _refreshAccessToken(String refreshToken) async {
+    final startedAt = DateTime.now();
+    var attempt = 0;
+    return await retry<AuthResponse>(
+      // Make a GET request
+      () async {
+        attempt++;
+        _log.fine('Attempt $attempt to refresh token');
+        final options = GotrueRequestOptions(
+            headers: _headers,
+            body: {'refresh_token': refreshToken},
+            query: {'grant_type': 'refresh_token'});
+        final response = await _fetch
+            .request('$_url/token', RequestMethodType.post, options: options);
+        final authResponse = AuthResponse.fromJson(response);
+        return authResponse;
+      },
+      retryIf: (e) {
+        // Do not retry if the next retry comes after the next tick.
+        final nextBackOff =
+            Duration(milliseconds: (200 * pow(2, attempt - 1).floor()));
+
+        return e is AuthRetryableFetchException &&
+            (DateTime.now().millisecondsSinceEpoch +
+                    nextBackOff.inMilliseconds -
+                    startedAt.millisecondsSinceEpoch) <
+                Constants.autoRefreshTickDuration.inMilliseconds;
+      },
+      maxDelay: Duration(seconds: 10),
+      randomizationFactor: 0,
+
+      // Max interval between retries is 10 sec, so just set the maxAttempts
+      // to something that will yield a more than 10 sec interval.
+      maxAttempts: 999,
+    );
+  }
+
+  /// Returns the OAuth sign in URL constructed from the [url] parameter.
+  Future<OAuthResponse> _getUrlForProvider(
+    OAuthProvider provider, {
+    required String url,
     required String? scopes,
     required String? redirectTo,
     required Map<String, String>? queryParams,
+    bool skipBrowserRedirect = false,
   }) async {
-    final urlParams = {'provider': provider.name};
+    final urlParams = {'provider': provider.snakeCase};
     if (scopes != null) {
       urlParams['scopes'] = scopes;
     }
@@ -854,140 +1141,167 @@ class GoTrueClient {
       };
       urlParams.addAll(flowParams);
     }
-    final url = '$_url/authorize?${Uri(queryParameters: urlParams).query}';
-    return OAuthResponse(provider: provider, url: url);
+    if (skipBrowserRedirect) {
+      urlParams['skip_http_redirect'] = 'true';
+    }
+    final oauthUrl = '$url?${Uri(queryParameters: urlParams).query}';
+    return OAuthResponse(provider: provider, url: oauthUrl);
   }
 
-  void _saveSession(Session session) async {
+  /// set currentSession and currentUser
+  void _saveSession(Session session) {
+    _log.finest('Saving session: $session');
+    _log.fine('Saving session');
     _currentSession = session;
     _currentUser = session.user;
-    final expiresAt = session.expiresAt;
+  }
 
-    if (_autoRefreshToken && expiresAt != null) {
-      _refreshTokenTimer?.cancel();
+  void _removeSession() {
+    _log.fine('Removing session');
+    _currentSession = null;
+    _currentUser = null;
+  }
 
-      final timeNow = (DateTime.now().millisecondsSinceEpoch / 1000).round();
-      final expiresIn = expiresAt - timeNow;
-      final refreshDurationBeforeExpires = expiresIn > 60 ? 60 : 1;
-      final nextDuration = expiresIn - refreshDurationBeforeExpires;
+  void _mayStartBroadcastChannel() {
+    if (const bool.fromEnvironment('dart.library.html')) {
+      // Used by the js library as well
+      final broadcastKey =
+          "sb-${Uri.parse(_url).host.split(".").first}-auth-token";
+
+      assert(_broadcastChannel == null,
+          'Broadcast channel should not be started more than once.');
       try {
-        if (nextDuration > 0) {
-          _refreshTokenRetryCount = 0;
-          final timerDuration = Duration(seconds: nextDuration);
-          _setTokenRefreshTimer(timerDuration);
-        } else {
-          await _callRefreshToken();
-        }
+        _broadcastChannel = web.getBroadcastChannel(broadcastKey);
+        _broadcastChannelSubscription =
+            _broadcastChannel?.onMessage.listen((messageEvent) {
+          final rawEvent = messageEvent['event'];
+          _log.finest('Received broadcast message: $messageEvent');
+          _log.info('Received broadcast event: $rawEvent');
+          final event = switch (rawEvent) {
+            // This library sends the js name of the event to be comptabile with
+            // the js library, so we need to convert it back to the dart name
+            'INITIAL_SESSION' => AuthChangeEvent.initialSession,
+            'PASSWORD_RECOVERY' => AuthChangeEvent.passwordRecovery,
+            'SIGNED_IN' => AuthChangeEvent.signedIn,
+            'SIGNED_OUT' => AuthChangeEvent.signedOut,
+            'TOKEN_REFRESHED' => AuthChangeEvent.tokenRefreshed,
+            'USER_UPDATED' => AuthChangeEvent.userUpdated,
+            'MFA_CHALLENGE_VERIFIED' => AuthChangeEvent.mfaChallengeVerified,
+            // This case should never happen though
+            _ => AuthChangeEvent.values
+                .firstWhereOrNull((event) => event.name == rawEvent),
+          };
+
+          if (event != null) {
+            Session? session;
+            if (messageEvent['session'] != null) {
+              session = Session.fromJson(messageEvent['session']);
+            }
+            if (session != null) {
+              _saveSession(session);
+            } else {
+              _removeSession();
+            }
+            notifyAllSubscribers(event, session: session, broadcast: false);
+          }
+        });
       } catch (e) {
-        // Catch any error, because in this case they should be handled by listening to [onAuthStateChange]
+        // Ignoring
       }
     }
   }
 
-  void _setTokenRefreshTimer(
-    Duration timerDuration, {
-    String? refreshToken,
-    String? accessToken,
-  }) {
-    _refreshTokenTimer?.cancel();
-    _refreshTokenRetryCount++;
-    if (_refreshTokenRetryCount < Constants.maxRetryCount) {
-      _refreshTokenTimer = Timer(timerDuration, () async {
-        try {
-          await _callRefreshToken(
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            ignorePendingRequest: true,
-          );
-        } catch (_) {
-          // Catch any error, because in this case they should be handled by listening to [onAuthStateChange]
-        }
-      });
-    } else {
-      throw AuthException('Access token refresh retry limit exceeded.');
-    }
-  }
-
-  void _removeSession() {
-    _currentSession = null;
-    _currentUser = null;
-    _refreshTokenRetryCount = 0;
-
-    _refreshTokenTimer?.cancel();
+  @mustCallSuper
+  void dispose() {
+    _onAuthStateChangeController.close();
+    _onAuthStateChangeControllerSync.close();
+    _broadcastChannel?.close();
+    _broadcastChannelSubscription?.cancel();
+    _refreshTokenCompleter?.completeError(AuthException('Disposed'));
+    _autoRefreshTicker?.cancel();
   }
 
   /// Generates a new JWT.
   ///
-  /// To prevent multiple simultaneous requests it catches an already ongoing requests by using the global [_refreshTokenCompleter]. If that's not null and not completed it returns the future that the ongoing request.
-  ///
-  /// To be able to call [_callRefreshToken] again after a [ClientException] and not get trapped by the ongoing request, [ignorePendingRequest] is used to bypass that check.
-  Future<AuthResponse> _callRefreshToken({
-    String? refreshToken,
-    String? accessToken,
-    bool ignorePendingRequest = false,
-  }) async {
-    if (_refreshTokenCompleter?.isCompleted ?? true) {
-      _refreshTokenCompleter = Completer<AuthResponse>();
-    } else if (!ignorePendingRequest && _isRefreshingToken) {
+  /// To prevent multiple simultaneous requests it catches an already ongoing request by using the global [_refreshTokenCompleter].
+  /// If that's not null and not completed it returns the future of the ongoing request.
+  Future<AuthResponse> _callRefreshToken(String refreshToken) async {
+    // Refreshing is already in progress
+    if (_refreshTokenCompleter != null) {
+      _log.finer("Don't call refresh token, already in progress");
       return _refreshTokenCompleter!.future;
     }
-    final token = refreshToken ?? currentSession?.refreshToken;
-    if (token == null) {
-      throw AuthException('No current session.');
-    }
-
-    final jwt = accessToken ?? currentSession?.accessToken;
 
     try {
-      _isRefreshingToken = true;
-      final body = {'refresh_token': token};
-      if (jwt != null) {
-        _headers['Authorization'] = 'Bearer $jwt';
-      }
-      final options = GotrueRequestOptions(
-          headers: _headers,
-          body: body,
-          query: {'grant_type': 'refresh_token'});
-      final response = await _fetch
-          .request('$_url/token', RequestMethodType.post, options: options);
-      final authResponse = AuthResponse.fromJson(response);
+      _refreshTokenCompleter = Completer<AuthResponse>();
 
-      if (authResponse.session == null) {
-        throw AuthException('Invalid session data.');
-      }
-
-      _saveSession(authResponse.session!);
-
-      _notifyAllSubscribers(AuthChangeEvent.tokenRefreshed);
-      _refreshTokenCompleter!.complete(authResponse);
-      return authResponse;
-    } on ClientException {
-      _setTokenRefreshTimer(
-        Constants.retryInterval * pow(2, _refreshTokenRetryCount),
-        refreshToken: token,
-        accessToken: accessToken,
+      // Catch any error in case nobody awaits the future
+      _refreshTokenCompleter!.future.then(
+        (_) => null,
+        onError: (_, __) => null,
       );
-      return _refreshTokenCompleter!.future;
-    } catch (error, stack) {
-      if (error is AuthException) {
-        if (error.message == 'Invalid Refresh Token: Refresh Token Not Found') {
-          await signOut();
-        }
+      _log.fine('Refresh access token');
+
+      final data = await _refreshAccessToken(refreshToken);
+
+      final session = data.session;
+
+      if (session == null) {
+        throw AuthSessionMissingException();
       }
-      _onAuthStateChangeController.addError(error, stack);
+
+      _saveSession(session);
+      notifyAllSubscribers(AuthChangeEvent.tokenRefreshed);
+
+      _refreshTokenCompleter?.complete(data);
+      return data;
+    } on AuthException catch (error, stack) {
+      if (error is! AuthRetryableFetchException) {
+        _removeSession();
+        notifyAllSubscribers(AuthChangeEvent.signedOut);
+      } else {
+        notifyException(error, stack);
+      }
+
+      _refreshTokenCompleter?.completeError(error);
+
+      rethrow;
+    } catch (error, stack) {
+      _refreshTokenCompleter?.completeError(error);
+      notifyException(error, stack);
       rethrow;
     } finally {
-      _isRefreshingToken = false;
+      _refreshTokenCompleter = null;
     }
   }
 
-  void _notifyAllSubscribers(AuthChangeEvent event) {
-    final state = AuthState(event, currentSession);
+  /// For internal use only.
+  ///
+  /// [broadcast] is used to determine if the event should be broadcasted to
+  /// other tabs.
+  @internal
+  void notifyAllSubscribers(
+    AuthChangeEvent event, {
+    Session? session,
+    bool broadcast = true,
+  }) {
+    session ??= currentSession;
+    if (broadcast && event != AuthChangeEvent.initialSession) {
+      _broadcastChannel?.postMessage({
+        'event': event.jsName,
+        'session': session?.toJson(),
+      });
+    }
+    final state = AuthState(event, session, fromBroadcast: !broadcast);
+    _log.finest('onAuthStateChange: $state');
     _onAuthStateChangeController.add(state);
     _onAuthStateChangeControllerSync.add(state);
   }
 
-  Exception _notifyException(Exception exception, [StackTrace? stackTrace]) {
+  /// For internal use only.
+  @internal
+  Object notifyException(Object exception, [StackTrace? stackTrace]) {
+    _log.warning('Notifying exception', exception, stackTrace);
     _onAuthStateChangeController.addError(
       exception,
       stackTrace ?? StackTrace.current,
