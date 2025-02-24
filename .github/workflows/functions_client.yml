@@ -1,36 +1,39 @@
-name: gotrue
+name: functions_client
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'packages/gotrue/**'
-      - '.github/workflows/gotrue.yaml'
+      - 'packages/functions_client/**'
+      - '.github/workflows/functions_client.yml'
+      - 'packages/yet_another_json_isolate/**'
 
   pull_request:
     paths:
-      - 'packages/gotrue/**'
-      - '.github/workflows/gotrue.yaml'
+      - 'packages/functions_client/**'
+      - '.github/workflows/functions_client.yml'
+      - 'packages/yet_another_json_isolate/**'
 
 jobs:
   test:
     name: Test SDK ${{ matrix.sdk }}
+
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        sdk: [2.17.0, stable, beta, dev]
+        sdk: [stable, beta, dev]
 
     defaults:
       run:
-        working-directory: packages/gotrue
+        working-directory: packages/functions_client
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checks-out repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -41,25 +44,19 @@ jobs:
         run: |
           cd ../../
           dart pub global activate melos
-          melos bootstrap --ignore="supabase_flutter"
+          melos bootstrap --no-flutter
 
       - name: dartfmt
         if: ${{ matrix.sdk == 'stable'}}
         run: dart format lib test -l 80 --set-exit-if-changed
 
       - name: analyzer
+        if: ${{ matrix.sdk == 'stable'}}
         run: dart analyze --fatal-warnings --fatal-infos .
 
-      - name: Build Docker image
-        run: |
-          cd ../../infra/gotrue
-          docker-compose down
-          docker-compose up -d
-
-      - name: Sleep for 5 seconds
-        uses: jakejarvis/wait-action@master
-        with:
-          time: '5s'
+      - name: analyzer
+        if: ${{ matrix.sdk == 'beta' || matrix.sdk == 'dev' }}
+        run: dart analyze
 
       - name: Run tests
         run: dart test

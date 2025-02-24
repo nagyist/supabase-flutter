@@ -1,3 +1,163 @@
+## 2.8.4
+
+ - **FIX**: Allow null to be returned from accessToken function when the user is not signed in ([#1099](https://github.com/supabase/supabase-flutter/issues/1099)). ([d04d9e63](https://github.com/supabase/supabase-flutter/commit/d04d9e63bcc46c2ee71e311b4c3addb216f0f520))
+ - **DOCS**: Fix typos ([#1108](https://github.com/supabase/supabase-flutter/issues/1108)). ([46b483f8](https://github.com/supabase/supabase-flutter/commit/46b483f83a70fb7785ef3bccca6849fa6b07852c))
+
+## 2.8.3
+
+ - Update a dependency to the latest release.
+
+## 2.8.2
+
+ - Update a dependency to the latest release.
+
+## 2.8.1
+
+ - **FIX**: Support custom access token ([#1073](https://github.com/supabase/supabase-flutter/issues/1073)). ([fc9ad2c9](https://github.com/supabase/supabase-flutter/commit/fc9ad2c94a02921ca8ced4564d9bcd8cde2c2397))
+
+## 2.8.0
+
+ - **FIX**: Rename logger from gotrue to auth ([#1055](https://github.com/supabase/supabase-flutter/issues/1055)). ([eea1ea6c](https://github.com/supabase/supabase-flutter/commit/eea1ea6c4e200e8ffc52d8343c0684c19670e3ed))
+ - **FEAT**: Add logging ([#1042](https://github.com/supabase/supabase-flutter/issues/1042)). ([d1ecabd7](https://github.com/supabase/supabase-flutter/commit/d1ecabd77881a0488d2d4b41ea5ee5abda6c5c35))
+
+## 2.7.0
+
+ - **FIX**: Better stream and access token management ([#1019](https://github.com/supabase/supabase-flutter/issues/1019)). ([4a8b6416](https://github.com/supabase/supabase-flutter/commit/4a8b641661da4ce9b6ddaea64793df58411809f7))
+ - **FIX**: Update example native code ([#1029](https://github.com/supabase/supabase-flutter/issues/1029)). ([588b5000](https://github.com/supabase/supabase-flutter/commit/588b5000d64a5d71b45ed57f70f0ed812dd34619))
+ - **FEAT**: Broadcast auth events to other tabs on web ([#1005](https://github.com/supabase/supabase-flutter/issues/1005)). ([8f473f1a](https://github.com/supabase/supabase-flutter/commit/8f473f1a99e0cbb9d570eb3fff0786ed5084351c))
+
+## 2.6.0
+
+ - **FIX**: Upgrade `web_socket_channel` for supporting `web: ^1.0.0` and therefore WASM compilation on web ([#992](https://github.com/supabase/supabase-flutter/issues/992)). ([7da68565](https://github.com/supabase/supabase-flutter/commit/7da68565a7aa578305b099d7af755a7b0bcaca46))
+ - **FEAT**: Add third-party auth support ([#999](https://github.com/supabase/supabase-flutter/issues/999)). ([c68d44d1](https://github.com/supabase/supabase-flutter/commit/c68d44d10ac4bf8180e5b1833fe0e2bfa2c83515))
+
+## 2.5.11
+
+ - Update a dependency to the latest release.
+
+## 2.5.10
+
+ - Update a dependency to the latest release.
+
+## 2.5.9
+
+ - **FIX**(gotrue): Ensure a single `initialSession` is emitted. ([#975](https://github.com/supabase/supabase-flutter/issues/975)). ([6323f9fd](https://github.com/supabase/supabase-flutter/commit/6323f9fd40564b36027a1fc48004822baa063e19))
+
+## 2.5.8
+
+ - **FIX**: Fix duplicate initial deeplink handling when using AppLinks >= 6.0.0 ([#965](https://github.com/supabase/supabase-flutter/issues/965)). ([74747f0d](https://github.com/supabase/supabase-flutter/commit/74747f0de13187ddb2ebfba06a75d902dd1d98a5))
+
+## 2.5.7
+
+ - Update a dependency to the latest release.
+
+## 2.5.6
+
+ - Update a dependency to the latest release.
+
+## 2.5.5
+
+ - Update a dependency to the latest release.
+
+## 2.5.4
+
+ - Update a dependency to the latest release.
+
+## 2.5.3
+
+ - **FIX**: Keep compatible with app_links 6.0.0 and 5.0.0 ([#918](https://github.com/supabase/supabase-flutter/issues/918)). ([04a59dca](https://github.com/supabase/supabase-flutter/commit/04a59dcae738cf41e3a7daa293751db444f80f4c))
+
+## 2.5.2
+
+ - **FIX**: Update app_links dependency to accept v5.0.0 ([#908](https://github.com/supabase/supabase-flutter/issues/908)). ([7e9b9054](https://github.com/supabase/supabase-flutter/commit/7e9b905475c58d77078655e7cd944236f00a07a9))
+
+## 2.5.1
+
+ - Update a dependency to the latest release.
+
+## 2.5.0
+
+ - **FEAT**(gotrue,supabase_flutter): New auth token refresh algorithm ([#879](https://github.com/supabase/supabase-flutter/issues/879)). ([99931681](https://github.com/supabase/supabase-flutter/commit/9993168137f2e48279840c6c1b311ac7ac6138a6))
+
+## 2.4.0
+
+ - **FEAT**: Add `detectSessionInUri` option to optionally disable deep link observer.  ([#848](https://github.com/supabase/supabase-flutter/issues/848)). ([cb9aed80](https://github.com/supabase/supabase-flutter/commit/cb9aed8056a9725f8a3413958530474faef1d5d1))
+ - **DOCS**: Fixed imprecision in Custom Local Storage README.md ([#853](https://github.com/supabase/supabase-flutter/issues/853)). ([6655e576](https://github.com/supabase/supabase-flutter/commit/6655e576b96550e91a24eccce3a79c948adf2922))
+
+## 2.3.4
+
+ - **FIX**(gotrue,supabase_flutter): Throw error when parsing auth URL that contains an error description. ([#839](https://github.com/supabase/supabase-flutter/issues/839)). ([afc4ce51](https://github.com/supabase/supabase-flutter/commit/afc4ce51c14798c2319a0ebebe231895c6ddd8ae))
+ - **FIX**: Correct the class name used for custom storage ([#825](https://github.com/supabase/supabase-flutter/issues/825)). ([a7216626](https://github.com/supabase/supabase-flutter/commit/a72166268facd97f07cf9588415a2f3d31f68c22))
+
+## 2.3.3
+
+ - **REFACTOR**: Remove hive dependency and add instructinos to migration from v1 while persisting the auth state ([#823](https://github.com/supabase/supabase-flutter/issues/823)). ([26885c20](https://github.com/supabase/supabase-flutter/commit/26885c20167fd8f689ed0bd532fbff04f0e8006f))
+
+## 2.3.2
+
+ - **FIX**: Remove platform check to start deep link observer on every platform including Linux ([#815](https://github.com/supabase/supabase-flutter/issues/815)). ([9b05eeac](https://github.com/supabase/supabase-flutter/commit/9b05eeac559a1f2da6289e1d70b3fa89e262fa3c))
+
+## 2.3.1
+
+ - Update a dependency to the latest release.
+
+## 2.3.0
+
+ - **FIX**(supabase_flutter): Add timeout to Hive.openBox to fix hanging issue ([#799](https://github.com/supabase/supabase-flutter/issues/799)). ([7fc3ed0b](https://github.com/supabase/supabase-flutter/commit/7fc3ed0bfc14335e3a87b60edc25ba6edbfce6ab))
+ - **FEAT**(gotrue,supabase_flutter): Add `signInWithSSO` method ([#798](https://github.com/supabase/supabase-flutter/issues/798)). ([87c16327](https://github.com/supabase/supabase-flutter/commit/87c163279866ac9d44756fd7d5faf01d48860fb0))
+
+## 2.2.0
+
+ - **FEAT**(supabase_flutter): Update app_link to v3.5.0, to add Linux support for deep links ([#792](https://github.com/supabase/supabase-flutter/issues/792)). ([5ad7a674](https://github.com/supabase/supabase-flutter/commit/5ad7a674a22033ac0f792fba8ba3e7fed721190e))
+
+## 2.1.0
+
+ - **FIX**: Update Provider to OAuthProvider in readme ([#778](https://github.com/supabase/supabase-flutter/issues/778)). ([0585ee96](https://github.com/supabase/supabase-flutter/commit/0585ee960c7dbd1b232fe84a169daf8b3f37170c))
+ - **FEAT**(gotrue,supabase_flutter): Add identity linking and unlinking methods. ([#760](https://github.com/supabase/supabase-flutter/issues/760)). ([6c0c922d](https://github.com/supabase/supabase-flutter/commit/6c0c922df6097a6ef5a43b801fbd45900118bd7a))
+
+## 2.0.2
+
+ - Update a dependency to the latest release.
+
+## 2.0.1
+
+ - Update a dependency to the latest release.
+ - **FIX**: fix(supabase_flutter): export signInWithOAuth() and generateRawNonce() ([#763](https://github.com/supabase/supabase-flutter/pull/763))
+
+## 2.0.0
+
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries. Upgrade guide can be found [here](https://supabase.com/docs/reference/dart/upgrade-guide).
+
+## 2.0.0-dev.4
+
+ - **FIX**: PKCE flow not emitting password recovery event ([#744](https://github.com/supabase/supabase-flutter/issues/744)). ([65859bd2](https://github.com/supabase/supabase-flutter/commit/65859bd2676873c685397b4b37d2685bed18b5a1))
+ - **FIX**: update sign in with Apple instruction on readme ([#746](https://github.com/supabase/supabase-flutter/issues/746)). ([a4897d06](https://github.com/supabase/supabase-flutter/commit/a4897d06684d38bb159721f8f308fcbde836095e))
+ - **FIX**: use SharedPreferences on web ([#738](https://github.com/supabase/supabase-flutter/issues/738)). ([d0cc2015](https://github.com/supabase/supabase-flutter/commit/d0cc20153f23004f1ef2f821b0e9c6d9189f6b03))
+ - **FIX**(supabase_flutter): session migration from hive to sharedPreferences now works properly ([#731](https://github.com/supabase/supabase-flutter/issues/731)). ([c81cf07f](https://github.com/supabase/supabase-flutter/commit/c81cf07f75be13916b8b90ccc1ded20f1ad4aec9))
+
+## 2.0.0-dev.3
+
+ - Update a dependency to the latest release.
+
+## 2.0.0-dev.2
+
+ - **FIX**(supabase_flutter): The session is not restored when the application is started. ([#702](https://github.com/supabase/supabase-flutter/issues/702)). ([e1cc576c](https://github.com/supabase/supabase-flutter/commit/e1cc576c53d4f7f84f866e98a03222c1e85c5376))
+ 
+## 2.0.0-dev.1
+
+ - Update a dependency to the latest release.
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **FEAT**(supabase_flutter): use SharedPreferences for access token ([#608](https://github.com/supabase/supabase-flutter/issues/608)). ([9d72a59d](https://github.com/supabase/supabase-flutter/commit/9d72a59d90434fa30dd3fe1b5f2cea42701eef2d))
+ - **DOCS**: update readme to v2 ([#647](https://github.com/supabase/supabase-flutter/issues/647)). ([514cefb4](https://github.com/supabase/supabase-flutter/commit/514cefb40afe65da17de6f54d7884e1a897aa22b))
+ - **BREAKING** **REFACTOR**: remove `signInWithApple` method and make `generateRawNonce` public ([#650](https://github.com/supabase/supabase-flutter/issues/650)). ([2f9fe41f](https://github.com/supabase/supabase-flutter/commit/2f9fe41fd71464e6345470097ac4e61cd367fa83))
+ - **BREAKING** **REFACTOR**: create package specific configs ([#640](https://github.com/supabase/supabase-flutter/issues/640)). ([53cd3e09](https://github.com/supabase/supabase-flutter/commit/53cd3e0994d09c9818ab1aeac165522e5d80f04b))
+ - **BREAKING** **REFACTOR**: many auth breaking changes ([#636](https://github.com/supabase/supabase-flutter/issues/636)). ([7782a587](https://github.com/supabase/supabase-flutter/commit/7782a58768e2e05b15510566dd171eac75331ac1))
+ - **BREAKING** **REFACTOR**: use Dart 3 ([#598](https://github.com/supabase/supabase-flutter/issues/598)). ([02c4071a](https://github.com/supabase/supabase-flutter/commit/02c4071aaf2792d365792eed18ec65d09af4c247))
+ 
 ## 1.10.25
 
  - Update native Google sign-in instructions on README

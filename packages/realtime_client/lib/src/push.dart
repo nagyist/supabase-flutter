@@ -1,8 +1,9 @@
 import 'dart:async';
 
+import 'package:realtime_client/realtime_client.dart';
 import 'package:realtime_client/src/constants.dart';
 import 'package:realtime_client/src/message.dart';
-import 'package:realtime_client/src/realtime_channel.dart';
+import 'package:realtime_client/src/types.dart';
 
 typedef Callback = void Function(dynamic response);
 
@@ -16,7 +17,6 @@ class Push {
   Map<String, dynamic>? _receivedResp;
   final List<Hook> _recHooks = [];
   String? _refEvent;
-  bool rateLimited = false;
 
   /// The channel
   final RealtimeChannel _channel;
@@ -58,7 +58,7 @@ class Push {
     }
     startTimeout();
     sent = true;
-    final status = _channel.socket.push(
+    _channel.socket.push(
       Message(
         topic: _channel.topic,
         event: _event,
@@ -67,9 +67,6 @@ class Push {
         joinRef: _channel.joinRef,
       ),
     );
-    if (status == 'rate limited') {
-      rateLimited = true;
-    }
   }
 
   void updatePayload(Map<String, dynamic> payload) {

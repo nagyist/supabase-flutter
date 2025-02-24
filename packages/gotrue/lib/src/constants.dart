@@ -1,3 +1,4 @@
+import 'package:gotrue/src/types/api_version.dart';
 import 'package:gotrue/src/types/auth_response.dart';
 import 'package:gotrue/src/version.dart';
 
@@ -11,19 +12,52 @@ class Constants {
 
   /// storage key prefix to store code verifiers
   static const String defaultStorageKey = 'supabase.auth.token';
-  static const expiryMargin = Duration(seconds: 10);
-  static const int maxRetryCount = 10;
-  static const retryInterval = Duration(milliseconds: 200);
+
+  /// The margin to use when checking if a token is expired.
+  static const expiryMargin = Duration(seconds: 30);
+
+  /// Current session will be checked for refresh at this interval.
+  static const autoRefreshTickDuration = Duration(seconds: 10);
+
+  /// A token refresh will be attempted this many ticks before the current session expires.
+  static const autoRefreshTickThreshold = 3;
+
+  /// The name of the header that contains API version.
+  static const apiVersionHeaderName = 'x-supabase-api-version';
+}
+
+class ApiVersions {
+  static final v20240101 = ApiVersion(
+    name: '2024-01-01',
+    timestamp: DateTime.parse('2024-01-01T00:00:00.0Z'),
+  );
 }
 
 enum AuthChangeEvent {
-  passwordRecovery,
-  signedIn,
-  signedOut,
-  tokenRefreshed,
-  userUpdated,
-  userDeleted,
-  mfaChallengeVerified,
+  initialSession('INITIAL_SESSION'),
+  passwordRecovery('PASSWORD_RECOVERY'),
+  signedIn('SIGNED_IN'),
+  signedOut('SIGNED_OUT'),
+  tokenRefreshed('TOKEN_REFRESHED'),
+  userUpdated('USER_UPDATED'),
+
+  @Deprecated('Was never in use and might be removed in the future.')
+  userDeleted(''),
+  mfaChallengeVerified('MFA_CHALLENGE_VERIFIED');
+
+  final String jsName;
+  const AuthChangeEvent(this.jsName);
+}
+
+extension AuthChangeEventExtended on AuthChangeEvent {
+  static AuthChangeEvent? fromString(String? val) {
+    for (final event in AuthChangeEvent.values) {
+      if (event.name == val) {
+        return event;
+      }
+    }
+    return null;
+  }
 }
 
 enum GenerateLinkType {
@@ -64,11 +98,14 @@ enum OtpChannel {
   whatsapp,
 }
 
-///Determines which sessions should be logged out.
-///
-///[global] means all sessions by this account will be signed out.
-///
-///[local] means only this session will be signed out.
-///
-///[others] means all other sessions except the current one will be signed out. When using others, there is no [AuthChangeEvent.signedOut] event fired on the current session!
-enum SignOutScope { global, local, others }
+/// Determines which sessions should be logged out.
+enum SignOutScope {
+  /// All sessions by this account will be signed out.
+  global,
+
+  /// Only this session will be signed out.
+  local,
+
+  /// All other sessions except the current one will be signed out. When using others, there is no [AuthChangeEvent.signedOut] event fired on the current session!
+  others,
+}

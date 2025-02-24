@@ -31,24 +31,24 @@ void main() {
     });
 
     test('basic select table', () async {
-      final res = await postgrest.from('users').select<PostgrestList>();
+      final res = await postgrest.from('users').select();
       expect(res.length, 4);
     });
 
     test('stored procedure', () async {
-      final res = await postgrest.rpc('get_status', params: {
+      final res = await postgrest.rpc<String>('get_status', params: {
         'name_param': 'supabot',
       });
       expect(res, 'ONLINE');
     });
 
     test('select on stored procedure', () async {
-      final List res = await postgrest.rpc(
+      final res = await postgrest.rpc(
         'get_username_and_status',
         params: {'name_param': 'supabot'},
       ).select('status');
       expect(
-        (res.first as Map<String, dynamic>)['status'],
+        res.first['status'],
         'ONLINE',
       );
     });
@@ -56,6 +56,34 @@ void main() {
     test('stored procedure returns void', () async {
       final res = await postgrest.rpc('void_func');
       expect(res, isNull);
+    });
+
+    test('stored procedure returns int', () async {
+      final res = await postgrest.rpc<int>('get_integer');
+      expect(res, isA<int>());
+    });
+
+    test('stored procedure with array parameter', () async {
+      final res = await postgrest.rpc<int>(
+        'get_array_element',
+        params: {
+          'arr': [37, 420, 64],
+          'index': 2
+        },
+      );
+      expect(res, 420);
+    });
+
+    test('stored procedure with read-only access mode', () async {
+      final res = await postgrest.rpc<int>(
+        'get_array_element',
+        params: {
+          'arr': [37, 420, 64],
+          'index': 2
+        },
+        get: true,
+      );
+      expect(res, 420);
     });
 
     test('custom headers', () async {
@@ -82,22 +110,54 @@ void main() {
       );
     });
 
+    test('set header on rpc', () async {
+      final httpClient = CustomHttpClient();
+      final postgrest = PostgrestClient(rootUrl, httpClient: httpClient);
+
+      await postgrest
+          .rpc('empty-succ')
+          .setHeader("myKey", "myValue")
+          .select()
+          .head();
+      expect(httpClient.lastRequest!.headers, containsPair("myKey", "myValue"));
+
+      // Other following requests should not have the header
+      await postgrest.rpc('empty-succ').select().head();
+      expect(httpClient.lastRequest!.headers,
+          isNot(containsPair("myKey", "myValue")));
+    });
+
+    test('set header on query builder', () async {
+      final httpClient = CustomHttpClient();
+      final postgrest = PostgrestClient(rootUrl, httpClient: httpClient);
+
+      await postgrest
+          .from('empty-succ')
+          .setHeader("myKey", "myValue")
+          .select()
+          .head();
+      expect(httpClient.lastRequest!.headers, containsPair("myKey", "myValue"));
+
+      // Other following requests should not have the header
+      await postgrest.from('empty-succ').select().head();
+      expect(httpClient.lastRequest!.headers,
+          isNot(containsPair("myKey", "myValue")));
+    });
+
     test('switch schema', () async {
       final postgrest = PostgrestClient(rootUrl, schema: 'personal');
-      final res = await postgrest.from('users').select<PostgrestList>();
+      final res = await postgrest.from('users').select();
       expect(res.length, 5);
     });
 
     test('query non-public schema dynamically', () async {
       final postgrest = PostgrestClient(rootUrl);
-      final personalData = await postgrest
-          .useSchema('personal')
-          .from('users')
-          .select<PostgrestList>();
+      final personalData =
+          await postgrest.schema('personal').from('users').select();
       expect(personalData.length, 5);
 
       // confirm that the client defaults to its initialized schema by default.
-      final publicData = await postgrest.from('users').select<PostgrestList>();
+      final publicData = await postgrest.from('users').select();
       expect(publicData.length, 4);
     });
 
@@ -105,7 +165,7 @@ void main() {
       final res = await postgrest.from('users').upsert(
         {'username': 'dragarcia', 'status': 'OFFLINE'},
         onConflict: 'username',
-      ).select<PostgrestList>();
+      ).select();
       expect(
         res.first['status'],
         'OFFLINE',
@@ -119,13 +179,13 @@ void main() {
         'message': 'foo',
         'username': 'supabot',
         'channel_id': 2
-      }).select<PostgrestList>();
+      }).select();
       final headersAfter = {...postgrest.headers};
 
       expect(headersBefore, headersAfter);
       expect(res.first['id'], 3);
 
-      final resMsg = await postgrest.from('messages').select<PostgrestList>();
+      final resMsg = await postgrest.from('messages').select();
       expect(resMsg.length, 3);
     });
 
@@ -134,7 +194,7 @@ void main() {
         {'username': 'dragarcia'},
         onConflict: 'username',
         ignoreDuplicates: true,
-      ).select<PostgrestList>();
+      ).select();
       expect(res, isEmpty);
     });
 
@@ -144,7 +204,7 @@ void main() {
           'username': "bot",
           'status': 'OFFLINE',
         },
-      ).select<PostgrestList>();
+      ).select();
       expect(res.length, 1);
       expect(res.first['status'], 'OFFLINE');
     });
@@ -154,7 +214,7 @@ void main() {
         {
           'username': "bot",
         },
-      ).select<PostgrestList>();
+      ).select();
       expect(res.length, 1);
       expect(res.first['status'], 'ONLINE');
     });
@@ -164,7 +224,7 @@ void main() {
         {
           'username': "bot",
         },
-      ).select<PostgrestList>();
+      ).select();
       expect(res.length, 1);
       expect(res.first['status'], 'ONLINE');
     });
@@ -173,7 +233,7 @@ void main() {
       final res = await postgrest.from('messages').insert([
         {'id': 4, 'message': 'foo', 'username': 'supabot', 'channel_id': 2},
         {'id': 5, 'message': 'foo', 'username': 'supabot', 'channel_id': 1}
-      ]).select<PostgrestList>();
+      ]).select();
       expect(res.length, 2);
     });
 
@@ -188,7 +248,7 @@ void main() {
             'username': "crazy bot",
           },
         ],
-      ).select<PostgrestList>();
+      ).select();
       expect(res.length, 2);
       expect(res.first['status'], 'OFFLINE');
       expect(res.last['status'], null);
@@ -206,7 +266,7 @@ void main() {
           },
         ],
         defaultToNull: false,
-      ).select<PostgrestList>();
+      ).select();
       expect(res.length, 2);
       expect(res.first['status'], 'OFFLINE');
       expect(res.last['status'], 'ONLINE');
@@ -218,12 +278,12 @@ void main() {
           .update(
             {'channel_id': 2},
           )
-          .is_("data", null)
-          .select<PostgrestList>();
+          .isFilter("data", null)
+          .select();
       expect(res, isNotEmpty);
       expect(res, everyElement(containsPair("channel_id", 2)));
 
-      final messages = await postgrest.from('messages').select<PostgrestList>();
+      final messages = await postgrest.from('messages').select();
       for (final rec in messages) {
         expect(rec['channel_id'], 2);
       }
@@ -234,7 +294,7 @@ void main() {
           .from('messages')
           .delete()
           .eq('message', 'Supabase Launch Week is on fire')
-          .select<PostgrestList>();
+          .select();
       expect(res, [
         {
           'id': 3,
@@ -248,14 +308,14 @@ void main() {
 
       final resMsg = await postgrest
           .from('messages')
-          .select<PostgrestList>()
+          .select()
           .eq('message', 'Supabase Launch Week is on fire');
       expect(resMsg, isEmpty);
     });
 
     test('missing table', () async {
       try {
-        await postgrest.from('missing_table').select<PostgrestList>();
+        await postgrest.from('missing_table').select();
         fail('found missing table');
       } on PostgrestException catch (error) {
         expect(error.code, '42P01');
@@ -277,44 +337,33 @@ void main() {
     });
 
     test('select with head:true', () async {
-      final res = await postgrest.from('users').select(
-            '*',
-            FetchOptions(head: true),
-          );
-      expect(res, null);
+      await postgrest.from('users').select('*').head();
     });
 
-    test('select with head:true with converter', () async {
-      final res = await postgrest
+    test('count with head: true, filters', () async {
+      final int count = await postgrest
           .from('users')
-          .select(
-            '*',
-            FetchOptions(head: true),
-          )
-          .withConverter((data) => data);
-      expect(res, null);
+          .count(CountOption.exact)
+          .eq('status', 'ONLINE');
+      expect(count, 3);
     });
 
     test('select with head:true, count: exact', () async {
-      final res = await postgrest.from('users').select<PostgrestResponse>(
-            '*',
-            FetchOptions(head: true, count: CountOption.exact),
-          );
-      expect(res, isA<PostgrestResponse>());
-      expect(res, isNotNull);
-      expect(res.count, 4);
+      final int res = await postgrest.from('users').count(CountOption.exact);
+      expect(res, 4);
     });
 
     test('select with count: planned', () async {
-      final res = await postgrest.from('users').select<PostgrestListResponse>(
-          '*', FetchOptions(count: CountOption.planned));
-      expect(res.count, isNotNull);
+      final res =
+          await postgrest.from('users').select('*').count(CountOption.planned);
+      final int count = res.count;
+      expect(count, isNotNull);
     });
 
     test('select with head:true, count: estimated', () async {
-      final res = await postgrest.from('users').select<PostgrestResponse>(
-          '*', FetchOptions(head: true, count: CountOption.estimated));
-      expect(res.count, const TypeMatcher<int>());
+      final int res =
+          await postgrest.from('users').count(CountOption.estimated);
+      expect(res, isA<int>());
     });
 
     test('select with csv', () async {
@@ -322,30 +371,23 @@ void main() {
       expect(res, isA<String>());
     });
 
-    test('stored procedure with head: true', () async {
-      final res = await postgrest.rpc(
-        'get_status',
-        params: {'name_param': 'supabot'},
-        options: FetchOptions(head: true),
-      );
-      expect(res, isNotNull);
-    });
-
     test('stored procedure with count: exact', () async {
-      final res = await postgrest.rpc(
+      final res = await postgrest.rpc<String>(
         'get_status',
         params: {'name_param': 'supabot'},
-        options: FetchOptions(count: CountOption.exact),
-      );
+      ).count(CountOption.exact);
       expect(res, isNotNull);
     });
 
     test('insert with count: exact', () async {
-      final res = await postgrest.from('users').upsert(
-        {'username': 'countexact', 'status': 'OFFLINE'},
-        onConflict: 'username',
-        options: FetchOptions(count: CountOption.exact),
-      ).select<PostgrestListResponse>();
+      final res = await postgrest
+          .from('users')
+          .upsert(
+            {'username': 'countexact', 'status': 'OFFLINE'},
+            onConflict: 'username',
+          )
+          .select()
+          .count(CountOption.exact);
       expect(res.count, 1);
     });
 
@@ -354,19 +396,20 @@ void main() {
           .from('users')
           .update(
             {'status': 'ONLINE'},
-            options: FetchOptions(count: CountOption.exact),
           )
           .eq('username', 'kiwicopple')
-          .select<PostgrestListResponse>();
+          .select()
+          .count(CountOption.exact);
       expect(res.count, 1);
     });
 
     test('delete with count: exact', () async {
       final res = await postgrest
           .from('users')
-          .delete(options: FetchOptions(count: CountOption.exact))
+          .delete()
           .eq('username', 'kiwicopple')
-          .select<PostgrestListResponse>();
+          .select()
+          .count(CountOption.exact);
 
       expect(res.count, 1);
     });
@@ -381,14 +424,14 @@ void main() {
     });
 
     test('select from uppercase table name', () async {
-      final res = await postgrest.from('TestTable').select<PostgrestList>();
+      final res = await postgrest.from('TestTable').select();
       expect(res.length, 2);
     });
 
     test('insert from uppercase table name', () async {
       final res = await postgrest.from('TestTable').insert([
         {'slug': 'new slug'}
-      ]).select<PostgrestList>();
+      ]).select();
       expect(
         (res.first)['slug'],
         'new slug',
@@ -398,28 +441,42 @@ void main() {
     test('delete from uppercase table name', () async {
       final res = await postgrest
           .from('TestTable')
-          .delete(options: FetchOptions(count: CountOption.exact))
+          .delete()
           .eq('slug', 'new slug')
-          .select<PostgrestListResponse>();
+          .select()
+          .count(CountOption.exact);
       expect(res.count, 1);
     });
 
     test('withConverter', () async {
       final res = await postgrest
           .from('users')
-          .select<PostgrestList>()
+          .select()
           .withConverter((data) => [data]);
       expect(res, isNotNull);
       expect(res, isNotEmpty);
       expect(res.first, isNotEmpty);
       expect(res.first, isA<List>());
     });
+
+    test('withConverter and count', () async {
+      final res = await postgrest
+          .from('users')
+          .select()
+          .count(CountOption.exact)
+          .withConverter((data) => [data]);
+      expect(res.data.first, isNotEmpty);
+      expect(res.data.first, isA<List>());
+      expect(res.count, greaterThan(3));
+    });
   });
   group("Custom http client", () {
+    CustomHttpClient customHttpClient = CustomHttpClient();
     setUp(() {
+      customHttpClient = CustomHttpClient();
       postgrestCustomHttpClient = PostgrestClient(
         rootUrl,
-        httpClient: CustomHttpClient(),
+        httpClient: customHttpClient,
       );
     });
 
@@ -449,11 +506,28 @@ void main() {
     test('basic stored procedure call', () async {
       try {
         await postgrestCustomHttpClient
-            .rpc('get_status', params: {'name_param': 'supabot'});
+            .rpc<String>('get_status', params: {'name_param': 'supabot'});
         fail(
             'Stored procedure was able to be called, even tho it does not exist');
       } on PostgrestException catch (error) {
         expect(error.code, '420');
+        expect(customHttpClient.lastRequest?.method, "POST");
+      }
+    });
+
+    test('stored procedure call in read-only access mode', () async {
+      try {
+        await postgrestCustomHttpClient.rpc<String>(
+          'get_status',
+          params: {'name_param': 'supabot'},
+          get: true,
+        );
+        fail(
+            'Stored procedure was able to be called, even tho it does not exist');
+      } on PostgrestException catch (error) {
+        expect(error.code, '420');
+        expect(customHttpClient.lastRequest?.method, "GET");
+        expect(customHttpClient.lastBody, isEmpty);
       }
     });
   });

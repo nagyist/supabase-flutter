@@ -1,3 +1,41 @@
+## 2.3.1
+
+ - **DOCS**: Fix typos ([#1108](https://github.com/supabase/supabase-flutter/issues/1108)). ([46b483f8](https://github.com/supabase/supabase-flutter/commit/46b483f83a70fb7785ef3bccca6849fa6b07852c))
+
+## 2.3.0
+
+ - **FEAT**: Support mime 2.0.0 ([#1079](https://github.com/supabase/supabase-flutter/pull/1079)).
+
+## 2.2.0
+
+ - **FEAT**: Add logging ([#1042](https://github.com/supabase/supabase-flutter/issues/1042)). ([d1ecabd7](https://github.com/supabase/supabase-flutter/commit/d1ecabd77881a0488d2d4b41ea5ee5abda6c5c35))
+
+## 2.1.0
+
+ - **FEAT**(storage_client): Support copy/move to different bucket ([#1043](https://github.com/supabase/supabase-flutter/issues/1043)). ([e095c14e](https://github.com/supabase/supabase-flutter/commit/e095c14e29e82cceb96220b5d73e67d991909478))
+
+## 2.0.3
+
+ - **FIX**: Upgrade `web_socket_channel` for supporting `web: ^1.0.0` and therefore WASM compilation on web ([#992](https://github.com/supabase/supabase-flutter/issues/992)). ([7da68565](https://github.com/supabase/supabase-flutter/commit/7da68565a7aa578305b099d7af755a7b0bcaca46))
+
+## 2.0.2
+
+ - **CHORE**: Add some comments on storage symbols ([#938](https://github.com/supabase/supabase-flutter/issues/938)).
+
+## 2.0.1
+
+ - **FIX**: Use per client fetch instance ([#818](https://github.com/supabase/supabase-flutter/issues/818)). ([0f3182c4](https://github.com/supabase/supabase-flutter/commit/0f3182c4f34ca5096b6dd747edf6ade0d1ec1c9e))
+
+## 2.0.0
+
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **BREAKING** **REFACTOR**: use Dart 3 ([#598](https://github.com/supabase/supabase-flutter/issues/598)). ([02c4071a](https://github.com/supabase/supabase-flutter/commit/02c4071aaf2792d365792eed18ec65d09af4c247))
+ 
 ## 1.5.4
 
  - **FIX**: compile with webdev ([#653](https://github.com/supabase/supabase-flutter/issues/653)). ([23242287](https://github.com/supabase/supabase-flutter/commit/232422874df7f09fcf76ab5879822741a7272245))
