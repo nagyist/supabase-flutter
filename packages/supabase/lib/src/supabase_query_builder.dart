@@ -1,7 +1,4 @@
-import 'package:http/http.dart';
-import 'package:supabase/src/supabase_stream_builder.dart';
 import 'package:supabase/supabase.dart';
-import 'package:yet_another_json_isolate/yet_another_json_isolate.dart';
 
 class SupabaseQueryBuilder extends PostgrestQueryBuilder {
   final RealtimeClient _realtime;
@@ -12,29 +9,30 @@ class SupabaseQueryBuilder extends PostgrestQueryBuilder {
   SupabaseQueryBuilder(
     String url,
     RealtimeClient realtime, {
-    Map<String, String> headers = const {},
-    required String schema,
+    super.headers = const {},
+    required String super.schema,
     required String table,
-    Client? httpClient,
+    super.httpClient,
     required int incrementId,
-    required YAJsonIsolate isolate,
+    required super.isolate,
   })  : _realtime = realtime,
         _schema = schema,
         _table = table,
         _incrementId = incrementId,
         super(
-          url,
-          headers: headers,
-          schema: schema,
-          httpClient: httpClient,
-          isolate: isolate,
+          url: Uri.parse(url),
         );
 
-  /// Returns real-time data from your table as a `Stream`.
+  /// Combines the current state of your table from PostgREST with changes from the realtime server to return real-time data from your table as a [Stream].
   ///
   /// Realtime is disabled by default for new tables. You can turn it on by [managing replication](https://supabase.com/docs/guides/realtime/extensions/postgres-changes#replication-setup).
   ///
-  /// Pass the list of primary key column names to [primaryKey], which will be used to updating and deleting the proper records internally as the library receives real-time updates.
+  /// Pass the list of primary key column names to [primaryKey], which will be used to update and delete the proper records internally as the stream receives real-time updates.
+  ///
+  /// It handles the lifecycle of the realtime connection and automatically refetches data from PostgREST when needed.
+  ///
+  /// Make sure to provide `onError` and `onDone` callbacks to [Stream.listen] to handle errors and completion of the stream.
+  /// The stream gets closed when the realtime connection is closed.
   ///
   /// ```dart
   /// supabase.from('chats').stream(primaryKey: ['id']).listen(_onChatsReceived);
@@ -45,9 +43,9 @@ class SupabaseQueryBuilder extends PostgrestQueryBuilder {
   /// ```dart
   /// supabase.from('chats').stream(primaryKey: ['id']).eq('room_id','123').order('created_at').limit(20).listen(_onChatsReceived);
   /// ```
-  SupabaseStreamBuilder stream({required List<String> primaryKey}) {
+  SupabaseStreamFilterBuilder stream({required List<String> primaryKey}) {
     assert(primaryKey.isNotEmpty, 'Please specify primary key column(s).');
-    return SupabaseStreamBuilder(
+    return SupabaseStreamFilterBuilder(
       queryBuilder: this,
       realtimeClient: _realtime,
       realtimeTopic: '$_schema:$_table:$_incrementId',

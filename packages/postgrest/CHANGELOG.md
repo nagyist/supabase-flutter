@@ -1,3 +1,74 @@
+## 2.4.1
+
+ - **DOCS**: Fix typo for RPC docs ([#1105](https://github.com/supabase/supabase-flutter/issues/1105)). ([7c8c8630](https://github.com/supabase/supabase-flutter/commit/7c8c8630257984f429406b0d85a8601881712343))
+
+## 2.4.0
+
+ - **FEAT**: Read-only access mode rpc ([#1081](https://github.com/supabase/supabase-flutter/issues/1081)). ([d0a04154](https://github.com/supabase/supabase-flutter/commit/d0a04154ff56d40d00e1c9282d8ba859681c7275))
+
+## 2.3.0
+
+ - **FEAT**: Add logging ([#1042](https://github.com/supabase/supabase-flutter/issues/1042)). ([d1ecabd7](https://github.com/supabase/supabase-flutter/commit/d1ecabd77881a0488d2d4b41ea5ee5abda6c5c35))
+
+## 2.2.0
+
+ - **FEAT**: Add setHeader method on postgrest builder ([#1003](https://github.com/supabase/supabase-flutter/issues/1003)). ([efe8e5df](https://github.com/supabase/supabase-flutter/commit/efe8e5df7935b75b580e2ead01b9c08ac7b94c2c))
+
+## 2.1.4
+
+ - **FIX**: Upgrade `web_socket_channel` for supporting `web: ^1.0.0` and therefore WASM compilation on web ([#992](https://github.com/supabase/supabase-flutter/issues/992)). ([7da68565](https://github.com/supabase/supabase-flutter/commit/7da68565a7aa578305b099d7af755a7b0bcaca46))
+
+## 2.1.3
+
+ - Update a dependency to the latest release.
+
+## 2.1.2
+
+ - **FIX**(postgrest): Update parameter type of `isFilter()` to only allow boolean or null ([#920](https://github.com/supabase/supabase-flutter/issues/920)). ([0a3b73e0](https://github.com/supabase/supabase-flutter/commit/0a3b73e02f90ad8d05cf96bf91336a951982b800))
+ - **FIX**(postgrest): Update parameter type of `match()` filter so that null values cannot be passed.  ([#919](https://github.com/supabase/supabase-flutter/issues/919)). ([0902124f](https://github.com/supabase/supabase-flutter/commit/0902124f7fa4b0fab07cc4b43a895914514fd04a))
+
+## 2.1.1
+
+ - **DOCS**(postgrest): Expand documentation for `contains` and `containedBy` methods ([#824](https://github.com/supabase/supabase-flutter/issues/824)). ([e241e766](https://github.com/supabase/supabase-flutter/commit/e241e7668e4e0bafd6612011fef730f9b99874bc))
+
+## 2.1.0
+
+ - **FIX**: Passing `null` to `not()` filter is now allowed ([#775](https://github.com/supabase/supabase-flutter/issues/775)). ([13f02286](https://github.com/supabase/supabase-flutter/commit/13f02286dc2d6fd1c1a30099bf540c436951f9a4))
+ - **FEAT**(postgrest): Add `toJson()` method to `PostgrestException` to allow serialization ([#783](https://github.com/supabase/supabase-flutter/issues/783)). ([28c9819a](https://github.com/supabase/supabase-flutter/commit/28c9819a1af715d2711a896d6f9694a19dc24120))
+
+## 2.0.1
+
+ - **FIX**: enable filtering and tranformation on count with head ([#768](https://github.com/supabase/supabase-flutter/issues/768)). ([d66aaab6](https://github.com/supabase/supabase-flutter/commit/d66aaab66e5b0d437da4f49b6cdc2168dacf5582))
+
+## 2.0.0
+
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.
+
+## 2.0.0-dev.2
+
+ - **REFACTOR**: make `schema` variable private and rename `useSchema()` to `schema()` ([#737](https://github.com/supabase/supabase-flutter/issues/737)).
+
+## 2.0.0-dev.1
+
+> Note: This release has breaking changes.
+
+ - **FIX**: issue where `.range()` not respecting the offset given. ([#722](https://github.com/supabase/supabase-flutter/issues/722)). ([e3541a46](https://github.com/supabase/supabase-flutter/commit/e3541a46d026e069122634b7a6e84be5b9f1deaf))
+ - **FEAT**: adds geojson support for working with the PostGIS extension ([#721](https://github.com/supabase/supabase-flutter/issues/721)). ([60a25153](https://github.com/supabase/supabase-flutter/commit/60a2515391ab0c5abb205888dfa25a1ed744814e))
+ - **FEAT**: adds `.explain()` for debugging performance issues on Supabase client generated queries.  ([#719](https://github.com/supabase/supabase-flutter/issues/719)). ([f6e41578](https://github.com/supabase/supabase-flutter/commit/f6e41578895ce31542120bd6c937014e17c4e72d))
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **FIX**: don't try to decode an empty body ([#631](https://github.com/supabase/supabase-flutter/issues/631)). ([ec13c88f](https://github.com/supabase/supabase-flutter/commit/ec13c88f78f116d41c06a8f97e49a13d78b90172))
+ - **FEAT**(postgrest): immutability ([#600](https://github.com/supabase/supabase-flutter/issues/600)). ([95256697](https://github.com/supabase/supabase-flutter/commit/952566979dfae1e76ff9bac08354a729c0bd9514))
+ - **DOCS**: update readme to v2 ([#647](https://github.com/supabase/supabase-flutter/issues/647)). ([514cefb4](https://github.com/supabase/supabase-flutter/commit/514cefb40afe65da17de6f54d7884e1a897aa22b))
+ - **BREAKING** **REFACTOR**: rename is_ and in_ to isFilter and inFilter ([#646](https://github.com/supabase/supabase-flutter/issues/646)). ([1227394e](https://github.com/supabase/supabase-flutter/commit/1227394ed41913907d10bcafe59e3dbcea62e9e4))
+ - **BREAKING** **REFACTOR**: many auth breaking changes ([#636](https://github.com/supabase/supabase-flutter/issues/636)). ([7782a587](https://github.com/supabase/supabase-flutter/commit/7782a58768e2e05b15510566dd171eac75331ac1))
+ - **BREAKING** **REFACTOR**: use Dart 3 ([#598](https://github.com/supabase/supabase-flutter/issues/598)). ([02c4071a](https://github.com/supabase/supabase-flutter/commit/02c4071aaf2792d365792eed18ec65d09af4c247))
+ - **BREAKING** **FEAT**(postgrest): stronger type system for query building ([#624](https://github.com/supabase/supabase-flutter/issues/624)). ([951ce89e](https://github.com/supabase/supabase-flutter/commit/951ce89eced66afe88b6c406226823e1f7ced58e))
+ - **BREAKING** **FEAT**: use Object? instead of dynamic ([#606](https://github.com/supabase/supabase-flutter/issues/606)). ([0c6caa00](https://github.com/supabase/supabase-flutter/commit/0c6caa00912bc73fc220110bdd9f3d69aaecb3ac))
+ 
 ## 1.5.2
 
  - **FIX**: don't try to decode an empty body ([#631](https://github.com/supabase/supabase-flutter/issues/631)). ([ec13c88f](https://github.com/supabase/supabase-flutter/commit/ec13c88f78f116d41c06a8f97e49a13d78b90172))

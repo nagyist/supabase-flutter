@@ -1,3 +1,159 @@
+## 2.6.3
+
+ - **FIX**: Allow null to be returned from accessToken function when the user is not signed in ([#1099](https://github.com/supabase/supabase-flutter/issues/1099)). ([d04d9e63](https://github.com/supabase/supabase-flutter/commit/d04d9e63bcc46c2ee71e311b4c3addb216f0f520))
+ - **DOCS**: Fix typos ([#1108](https://github.com/supabase/supabase-flutter/issues/1108)). ([46b483f8](https://github.com/supabase/supabase-flutter/commit/46b483f83a70fb7785ef3bccca6849fa6b07852c))
+
+## 2.6.2
+
+ - Update a dependency to the latest release.
+
+## 2.6.1
+
+ - **FIX**(realtime_client): Prevent sending expired tokens ([#1095](https://github.com/supabase/supabase-flutter/issues/1095)). ([1bb034f0](https://github.com/supabase/supabase-flutter/commit/1bb034f0f82b03d629edc733688c8648cf01e5b9))
+ - **FIX**(realtime_client): Consolidate realtime subscription for stream ([#1096](https://github.com/supabase/supabase-flutter/issues/1096)). ([4e351155](https://github.com/supabase/supabase-flutter/commit/4e3511551cb0d6da673fa5c4187f7ada2a1f8865))
+
+## 2.6.0
+
+ - **FIX**: Support custom access token ([#1073](https://github.com/supabase/supabase-flutter/issues/1073)). ([fc9ad2c9](https://github.com/supabase/supabase-flutter/commit/fc9ad2c94a02921ca8ced4564d9bcd8cde2c2397))
+ - **FEAT**: Read-only access mode rpc ([#1081](https://github.com/supabase/supabase-flutter/issues/1081)). ([d0a04154](https://github.com/supabase/supabase-flutter/commit/d0a04154ff56d40d00e1c9282d8ba859681c7275))
+
+## 2.5.0
+
+ - **FEAT**: Add logging ([#1042](https://github.com/supabase/supabase-flutter/issues/1042)). ([d1ecabd7](https://github.com/supabase/supabase-flutter/commit/d1ecabd77881a0488d2d4b41ea5ee5abda6c5c35))
+
+## 2.4.0
+
+ - **FIX**: Better stream and access token management ([#1019](https://github.com/supabase/supabase-flutter/issues/1019)). ([4a8b6416](https://github.com/supabase/supabase-flutter/commit/4a8b641661da4ce9b6ddaea64793df58411809f7))
+ - **FEAT**: Broadcast auth events to other tabs on web ([#1005](https://github.com/supabase/supabase-flutter/issues/1005)). ([8f473f1a](https://github.com/supabase/supabase-flutter/commit/8f473f1a99e0cbb9d570eb3fff0786ed5084351c))
+
+## 2.3.0
+
+ - **FIX**: Upgrade `web_socket_channel` for supporting `web: ^1.0.0` and therefore WASM compilation on web ([#992](https://github.com/supabase/supabase-flutter/issues/992)). ([7da68565](https://github.com/supabase/supabase-flutter/commit/7da68565a7aa578305b099d7af755a7b0bcaca46))
+ - **FEAT**: Add third-party auth support ([#999](https://github.com/supabase/supabase-flutter/issues/999)). ([c68d44d1](https://github.com/supabase/supabase-flutter/commit/c68d44d10ac4bf8180e5b1833fe0e2bfa2c83515))
+
+## 2.2.7
+
+ - Update a dependency to the latest release.
+
+## 2.2.6
+
+ - Update a dependency to the latest release.
+
+## 2.2.5
+
+ - **FIX**: Add error messages for when the session or expiresAt was missing while making API requests.  ([#976](https://github.com/supabase/supabase-flutter/issues/976)). ([a25993cb](https://github.com/supabase/supabase-flutter/commit/a25993cbe5270c862023c23741fa0be048bb4731))
+
+## 2.2.4
+
+ - Update a dependency to the latest release.
+
+## 2.2.3
+
+ - Update a dependency to the latest release.
+
+## 2.2.2
+
+ - Update a dependency to the latest release.
+
+## 2.2.1
+
+ - Update a dependency to the latest release.
+
+## 2.2.0
+
+ - **FEAT**: Allow setting `timeout` of `RealtimeClient`. ([#932](https://github.com/supabase/supabase-flutter/issues/932)). ([dba8bae0](https://github.com/supabase/supabase-flutter/commit/dba8bae0c87209c8f900d753a1e15be7557a07dc))
+
+## 2.1.3
+
+ - Update a dependency to the latest release.
+
+## 2.1.2
+
+ - Update a dependency to the latest release.
+
+## 2.1.1
+
+ - Update a dependency to the latest release.
+
+## 2.1.0
+
+ - **FIX**: Don't send access token  in rest broadcast ([#881](https://github.com/supabase/supabase-flutter/issues/881)). ([01a10c97](https://github.com/supabase/supabase-flutter/commit/01a10c9708f6a9d4d2d2b0756009aa895c7238f6))
+ - **FEAT**(gotrue,supabase_flutter): New auth token refresh algorithm ([#879](https://github.com/supabase/supabase-flutter/issues/879)). ([99931681](https://github.com/supabase/supabase-flutter/commit/9993168137f2e48279840c6c1b311ac7ac6138a6))
+
+## 2.0.9
+
+ - Update a dependency to the latest release.
+
+## 2.0.8
+
+ - **REFACTOR**: Deprecate `eventsPerSecond` on Realtime ([#838](https://github.com/supabase/supabase-flutter/issues/838)). ([42383873](https://github.com/supabase/supabase-flutter/commit/42383873a71bbfbecb971e752806241bfdcaa0c2))
+
+## 2.0.7
+
+ - Update a dependency to the latest release.
+
+## 2.0.6
+
+ - Update a dependency to the latest release.
+
+## 2.0.5
+
+ - Update a dependency to the latest release.
+
+## 2.0.4
+
+ - Update a dependency to the latest release.
+
+## 2.0.3
+
+ - Update a dependency to the latest release.
+
+## 2.0.2
+
+ - Update a dependency to the latest release.
+
+## 2.0.1
+
+ - Update a dependency to the latest release.
+
+## 2.0.0
+
+ - Graduate package to a stable release. See pre-releases prior to this version for changelog entries.
+
+## 2.0.0-dev.4
+
+ - **FIX**: realtime ordering on double ([#741](https://github.com/supabase/supabase-flutter/issues/741)). ([f20faef7](https://github.com/supabase/supabase-flutter/commit/f20faef710e4e730590543ccd0a7bafd072be2ff))
+ - **REFACTOR**: make `schema` variable private and rename `useSchema()` to `schema()` ([#737](https://github.com/supabase/supabase-flutter/issues/737)). 
+
+## 2.0.0-dev.3
+
+ - Update a dependency to the latest release.
+
+## 2.0.0-dev.2
+
+- Update a dependency to the latest release.
+
+## 2.0.0-dev.1
+
+ - Update a dependency to the latest release.
+
+## 2.0.0-dev.0
+
+> Note: This release has breaking changes.
+
+ - **FIX**: stream with a different schema ([#661](https://github.com/supabase/supabase-flutter/issues/661)). ([c8fc2482](https://github.com/supabase/supabase-flutter/commit/c8fc24828d4f36fed64453a53d1bb5b4ff918d32))
+ - **FIX**(gotrue,supabase): allow refreshSession after exception ([#633](https://github.com/supabase/supabase-flutter/issues/633)). ([8853155f](https://github.com/supabase/supabase-flutter/commit/8853155fdaaec984818323b35718cb1c4c3ede4c))
+ - **FEAT**(supabase_flutter): use SharedPreferences for access token ([#608](https://github.com/supabase/supabase-flutter/issues/608)). ([9d72a59d](https://github.com/supabase/supabase-flutter/commit/9d72a59d90434fa30dd3fe1b5f2cea42701eef2d))
+ - **FEAT**(postgrest): immutability ([#600](https://github.com/supabase/supabase-flutter/issues/600)). ([95256697](https://github.com/supabase/supabase-flutter/commit/952566979dfae1e76ff9bac08354a729c0bd9514))
+ - **DOCS**: update readme to v2 ([#647](https://github.com/supabase/supabase-flutter/issues/647)). ([514cefb4](https://github.com/supabase/supabase-flutter/commit/514cefb40afe65da17de6f54d7884e1a897aa22b))
+ - **BREAKING** **REFACTOR**: rename is_ and in_ to isFilter and inFilter ([#646](https://github.com/supabase/supabase-flutter/issues/646)). ([1227394e](https://github.com/supabase/supabase-flutter/commit/1227394ed41913907d10bcafe59e3dbcea62e9e4))
+ - **BREAKING** **REFACTOR**: create package specific configs ([#640](https://github.com/supabase/supabase-flutter/issues/640)). ([53cd3e09](https://github.com/supabase/supabase-flutter/commit/53cd3e0994d09c9818ab1aeac165522e5d80f04b))
+ - **BREAKING** **REFACTOR**: many auth breaking changes ([#636](https://github.com/supabase/supabase-flutter/issues/636)). ([7782a587](https://github.com/supabase/supabase-flutter/commit/7782a58768e2e05b15510566dd171eac75331ac1))
+ - **BREAKING** **REFACTOR**: use Dart 3 ([#598](https://github.com/supabase/supabase-flutter/issues/598)). ([02c4071a](https://github.com/supabase/supabase-flutter/commit/02c4071aaf2792d365792eed18ec65d09af4c247))
+ - **BREAKING** **FIX**(supabase): make Supabase credentials private in `SupabaseClient` ([#649](https://github.com/supabase/supabase-flutter/issues/649)). ([fa341bfe](https://github.com/supabase/supabase-flutter/commit/fa341bfee883526a994bd61893aaba19bd521496))
+ - **BREAKING** **FEAT**(postgrest): stronger type system for query building ([#624](https://github.com/supabase/supabase-flutter/issues/624)). ([951ce89e](https://github.com/supabase/supabase-flutter/commit/951ce89eced66afe88b6c406226823e1f7ced58e))
+ - **BREAKING** **FEAT**: use Object? instead of dynamic ([#606](https://github.com/supabase/supabase-flutter/issues/606)). ([0c6caa00](https://github.com/supabase/supabase-flutter/commit/0c6caa00912bc73fc220110bdd9f3d69aaecb3ac))
+ 
 ## 1.11.11
 
  - Update a dependency to the latest release.

@@ -1,6 +1,10 @@
 import 'dart:convert';
 
 class YAJsonIsolate {
+  YAJsonIsolate({
+    String? debugName,
+  });
+
   Future<void> initialize() async {}
 
   Future<void> dispose() async {}
@@ -10,7 +14,7 @@ class YAJsonIsolate {
     return jsonDecode(json);
   }
 
-  Future<String> encode(Map json) async {
+  Future<String> encode(Object? json) async {
     await null;
     return jsonEncode(json);
   }

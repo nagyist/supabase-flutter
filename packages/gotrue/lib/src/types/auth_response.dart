@@ -19,13 +19,13 @@ class AuthResponse {
 
 /// Response of OAuth signin
 class OAuthResponse {
-  final Provider provider;
-  final String? url;
+  final OAuthProvider provider;
+  final String url;
 
   /// Instanciates an `OAuthResponse` object from json response.
   const OAuthResponse({
     required this.provider,
-    this.url,
+    required this.url,
   });
 }
 

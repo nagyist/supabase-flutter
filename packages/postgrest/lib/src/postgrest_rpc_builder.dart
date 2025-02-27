@@ -1,30 +1,53 @@
 part of 'postgrest_builder.dart';
 
-class PostgrestRpcBuilder extends PostgrestBuilder {
+class PostgrestRpcBuilder extends RawPostgrestBuilder {
   PostgrestRpcBuilder(
     String url, {
     Map<String, String>? headers,
     String? schema,
     Client? httpClient,
-    FetchOptions? options,
     required YAJsonIsolate isolate,
   }) : super(
-          url: Uri.parse(url),
-          headers: headers ?? {},
-          schema: schema,
-          httpClient: httpClient,
-          options: options,
-          isolate: isolate,
+          PostgrestBuilder(
+            url: Uri.parse(url),
+            headers: headers ?? {},
+            schema: schema,
+            httpClient: httpClient,
+            isolate: isolate,
+          ),
         );
 
-  /// Performs stored procedures on the database.
-  PostgrestFilterBuilder rpc([
-    dynamic params,
-    FetchOptions options = const FetchOptions(),
+  /// {@macro postgrest_rpc}
+  PostgrestFilterBuilder<T> rpc<T>([
+    Object? params,
+    bool get = false,
   ]) {
-    _method = METHOD_POST;
-    _body = params;
-    _options = options.ensureNotHead();
-    return PostgrestFilterBuilder(this);
+    var newUrl = _url;
+    final String method;
+    if (get) {
+      method = METHOD_GET;
+      if (params is Map) {
+        for (final entry in params.entries) {
+          assert(entry.key is String,
+              "RPC params map keys must be of type String");
+
+          final MapEntry(:key, :value) = entry;
+          final formattedValue =
+              value is List ? '{${_cleanFilterArray(value)}}' : value;
+          newUrl =
+              appendSearchParams(key.toString(), '$formattedValue', newUrl);
+        }
+      } else {
+        throw ArgumentError.value(params, 'params', 'argument must be a Map');
+      }
+    } else {
+      method = METHOD_POST;
+    }
+
+    return PostgrestFilterBuilder(_copyWithType(
+      method: method,
+      url: newUrl,
+      body: params,
+    ));
   }
 }
